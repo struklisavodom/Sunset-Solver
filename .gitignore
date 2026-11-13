@@ -1,0 +1,17 @@
+# your own data: never published
+rok_canyon.db
+rok_canyon.db-journal
+*.db
+captures/
+gear.json
+shared.json
+# learned faces are game art: shared through the friend zip, not the public repo
+portraits/
+# real game screenshots show other players' names
+testshots/
+# build output and local tooling
+Sunset Helper for friends.zip
+__pycache__/
+*.pyc
+.claude/
+*.zip
