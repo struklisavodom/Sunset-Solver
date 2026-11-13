@@ -13,7 +13,7 @@ def files():
     for root, dirs, names in os.walk(HERE):
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith("_unknown")]
         for n in names:
-            if n in SKIP_FILES or n.endswith((".db", ".db-journal", ".pyc")):
+            if n in SKIP_FILES or n.endswith((".db", ".db-journal", ".pyc", ".zip")):
                 continue
             yield os.path.join(root, n)
 
