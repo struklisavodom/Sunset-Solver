@@ -23,7 +23,7 @@ import priors
 import vision
 
 PENDING_MAX_AGE = 30 * 60
-BUILD = "14 Nov, 03:00"            # shown on the bar when idle, so you can tell a restart took effect
+BUILD = "14 Nov, 04:00"            # shown on the bar when idle, so you can tell a restart took effect
 
 
 def screen_grabber(get_settings):
@@ -81,6 +81,11 @@ class Watcher:
         # slow reads run on a worker, so the bar can say "captured, carry on" as soon as the frame is taken.
         # Without start() (tests), jobs run inline.
         self._jobs, self._busy, self._job_error = None, set(), ""
+        conn = db.connect(self.db_path)
+        try:   # the bar is hidden from screen captures unless you want it in your screenshots
+            self.bar_in_shots = db.get_setting(conn, "bar_in_shots", "0") == "1"
+        finally:
+            conn.close()
 
     # ------------------------------------------------------------ helpers
     def log(self, text):

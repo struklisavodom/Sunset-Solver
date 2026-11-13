@@ -558,6 +558,8 @@ packages ({esc(AUTO_ERR)}).</p><pre>pip install pillow numpy scipy mss pytessera
 <form method=post action=/auto/settings class=card><h3>Capture settings</h3>
 Monitor <input type=number name=monitor min=0 max=9 value="{esc(mon)}">
 Region <input name=region size=22 placeholder="left,top,width,height" value="{esc(region)}">
+<p><label><input type=checkbox name=bar_in_shots value=1{" checked" if WATCHER and WATCHER.bar_in_shots else ""}>
+Show the status bar in my screenshots</label> <span class=muted>(keep it in its corner: over the game it would be read too)</span></p>
 <button class=grey>Save</button>
 <p class=muted>Monitor 1 is the main screen. If the game runs in a window, enter the window's game area as a
 region (pixels), for example 0,31,1600,900.</p></form>
@@ -712,6 +714,8 @@ class Handler(BaseHTTPRequestHandler):
             if WATCHER and path == "/auto/settings":
                 db.set_setting(conn, "monitor", g("monitor", "1"))
                 db.set_setting(conn, "region", g("region"))
+                WATCHER.bar_in_shots = g("bar_in_shots") == "1"          # applied by the bar within a second
+                db.set_setting(conn, "bar_in_shots", "1" if WATCHER.bar_in_shots else "0")
                 return self.send("", 303, "/auto")
             if WATCHER and path == "/auto/probe":
                 try:

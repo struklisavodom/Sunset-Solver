@@ -53,12 +53,22 @@ def run(watcher):
         w.bind("<B1-Motion>", drag)
         w.bind("<Double-Button-1>", lambda e: webbrowser.open("http://127.0.0.1:8765"))   # open the web pages
         w.bind("<Button-3>", lambda e: root.destroy())                                    # right-click: quit the app
-    try:    # Windows: keep the bar out of the tool's own screen captures
-        import ctypes
-        root.update()
-        ctypes.windll.user32.SetWindowDisplayAffinity(ctypes.windll.user32.GetParent(root.winfo_id()), 0x11)
-    except Exception:
-        pass
+    applied = [None]
+
+    def capture_rule():
+        """Windows: hide the bar from screen captures (the watcher's and your screenshots), unless the
+        setting "Show the status bar in my screenshots" is on."""
+        want = bool(getattr(watcher, "bar_in_shots", False))
+        if want == applied[0]:
+            return
+        applied[0] = want
+        try:
+            import ctypes
+            ctypes.windll.user32.SetWindowDisplayAffinity(ctypes.windll.user32.GetParent(root.winfo_id()), 0 if want else 0x11)
+        except Exception:
+            pass
+    root.update()
+    capture_rule()
 
     def tick():
         text, colour = watcher.hint
@@ -68,6 +78,7 @@ def run(watcher):
         c = COLOURS.get(colour, "#e6e6e6")
         status.config(text=head, fg=c)
         show_strip(watcher.bar_strip)
+        capture_rule()
         if watcher.scan_seq != flash["seq"]:           # a new opponent was scanned: flash so it is noticed
             flash.update(seq=watcher.scan_seq, until=time.time() + 0.8)
         if rest:
