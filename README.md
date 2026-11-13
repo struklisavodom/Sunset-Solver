@@ -41,9 +41,6 @@ Get **Sunset Helper for friends.zip** from the person who shared this with you.
 
 ## ⚔️ Play
 
-> [!IMPORTANT]
-> Run the game **windowed or borderless** (not exclusive full screen), so the bar can show.
-
 Just play. The bar tells you what is happening:
 
 | The bar says | Meaning |
