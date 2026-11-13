@@ -5,7 +5,7 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "Sunset Helper for friends.zip")
-SKIP_DIRS = {"captures", "__pycache__", ".claude"}
+SKIP_DIRS = {"captures", "__pycache__", ".claude", ".git"}
 SKIP_FILES = {"rok_canyon.db", "gear.json", "CLAUDE.md", os.path.basename(OUT)}
 
 
