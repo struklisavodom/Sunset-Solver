@@ -161,6 +161,13 @@ check("meta counts fought and scouted line-ups", (meta["lineups"] >= 3, meta["co
 
 conn.close()
 
+print("leaderboard: an opened row is scouted like the challenge list")
+seq = w.scan_seq
+for name in ["leaderboard_1", "leaderboard_1"]:
+    w.step(shot(name))
+check("leaderboard scan on the bar", (bool(re.match(r"Scanned \d/5  \|  win ~\d+%", w.hint[0])), w.scan_seq > seq, (w.bar_strip or b"")[1:4]),
+      (True, True, b"PNG"))
+
 print("background reads: the bar says 'captured' at once, the read finishes behind it")
 import queue  # noqa: E402
 import time  # noqa: E402

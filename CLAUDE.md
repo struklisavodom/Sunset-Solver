@@ -70,6 +70,10 @@ User data, never overwrite: `rok_canyon.db`, `portraits/`, `captures/`, `gear.js
 - Result screen: win/loss, rank and star change. Stats screen: remaining, kills, healed, secondaries.
 - Challenge list (Sunset and Lost Canyon layouts): opponent line-up, levels, expertise, both powers;
   saved to `scouted` and linked to the fight if it is fought.
+- Leaderboard (Sunset Canyon main screen, a row opened with its arrow): scouted like the challenge list
+  (layout `rank` in `vision.CHALLENGE`). The strip height comes from the white level digits (`level_row`),
+  because the colour-based strip finder only gives a broad plateau there. Your power is read from the gold
+  banner (one shot misread 2,021,535 as 2,023,535: only used for that scan's estimate, not stored).
 - Commander view (key P): level, stars, power. SKILLS view: skill levels. Gear "?" popup: gear stats.
   TALENTS: kept as a picture only (totals too small to read).
 

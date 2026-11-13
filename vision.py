@@ -53,6 +53,10 @@ REPLAY_BOX = (0.452, 0.755, 0.548, 0.775)      # cyan REPLAY button (stats)
 CHALLENGE = {
     "sunset": {"refresh": (0.243, 0.238, 0.283, 0.246), "x": [680, 830, 980, 1130, 1280], "s": 66, "sec": (41, 19), "strip": (0.75, 0.8)},
     "lost":   {"refresh": (0.334, 0.2405, 0.356, 0.2455), "x": [637, 795, 953, 1111, 1269], "s": 72, "sec": (42, 13), "strip": (0.45, 1.0)},
+    # Sunset Canyon main screen (leaderboard): an expanded row shows the player's defence the same way;
+    # recognised by the top edge of the cyan CHALLENGE button (the stats REPLAY button there reaches ~0.7)
+    "rank":   {"refresh": (0.462, 0.757, 0.538, 0.763), "min": 0.9, "x": [680, 830, 980, 1130, 1280], "s": 66,
+               "sec": (41, 19), "strip": (0.75, 0.8), "my_pw": (735, 300, 845, 330), "opp_pw": (690, -118, 900, -88)},
 }
 STATS_ROWS = [402, 467, 532, 597, 662]
 STATS_COLS = {
@@ -261,10 +265,24 @@ def cyan_frac(img, fb):
     return float(((a[..., 2] > 200) & (a[..., 1] > 120) & (a[..., 0] < 90)).mean())
 
 
+def level_row(img, xs, y0=460, y1=820):
+    """Row of the white level digits under a line of hexes: the sharpest height cue on the leaderboard,
+    where the colour-based strip finder only gives a broad plateau. -> (row, strength); strength >= 150
+    when all five hexes show their level."""
+    a = np.asarray(img).astype(int)
+    white = []
+    for r in range(y0, y1):
+        seg = np.concatenate([a[r, x - 14: x + 14] for x in xs])
+        white.append(int(((seg.min(1) > 215) & ((seg.max(1) - seg.min(1)) < 40)).sum()))
+    sm = np.convolve(white, np.ones(9), "same")         # the digits are ~14 px tall
+    i = int(sm.argmax())
+    return y0 + i, int(sm[i])
+
+
 def challenge_mode(img):
-    """'sunset' | 'lost' when the challenge list is showing, else None."""
+    """'sunset' | 'lost' when the challenge list is showing, 'rank' on the leaderboard, else None."""
     for mode, L in CHALLENGE.items():
-        if cyan_frac(img, L["refresh"]) > 0.6:
+        if cyan_frac(img, L["refresh"]) > L.get("min", 0.6):
             return mode
     return None
 
@@ -586,9 +604,15 @@ def parse_challenge(img, lib=None, stash=False):
     if mode is None:
         return None
     L = CHALLENGE[mode]
-    y, score = find_strip_y(img, L["x"])
-    if y is None or score < 0.3:
-        return None
+    if mode == "rank":                               # strip height from the level digits (30 px above them)
+        r, strength = level_row(img, L["x"])
+        if strength < 150:
+            return None                              # no row opened
+        y, score = r - 30, strength / 300
+    else:
+        y, score = find_strip_y(img, L["x"])
+        if y is None or score < 0.3:
+            return None
     marches = []
     for i, x in enumerate(L["x"]):
         name, sim, sec = None, 0.0, None
@@ -619,10 +643,13 @@ def parse_challenge(img, lib=None, stash=False):
         del m["_spots"]
     a = np.asarray(img).astype(int)
 
-    def digits(box):                                 # white digits; the sword icon may add a stray digit
+    def digits(box, banner=False):                   # white digits; the sword icon may add a stray digit
         s = a[box[1]:box[3], box[0]:box[2]]
         for thr in (200, 180, 160):
-            m = (s.min(2) >= thr - 40) & (s.max(2) >= thr) & ((s.max(2) - s.min(2)) <= 90)
+            if banner:       # leaderboard: your power is pale cream on the gold banner
+                m = (s.min(2) >= thr - 75) & (s.max(2) >= thr + 15)
+            else:
+                m = (s.min(2) >= thr - 40) & (s.max(2) >= thr) & ((s.max(2) - s.min(2)) <= 90)
             t = _ocr(_best_cluster(m, gap=10), psm=7, whitelist="0123456789,")
             if _NUM.match(t) and len(t) >= 9:
                 return re.sub(r"\D", "", t)
@@ -631,7 +658,8 @@ def parse_challenge(img, lib=None, stash=False):
     s = L["s"]
     strip_box = (int(L["x"][0] - 0.8 * s), int(y - top * s), int(L["x"][-1] + 1.3 * s), int(y + bottom * s))
     return {"mode": mode, "strip_y": y, "strip_box": strip_box, "strip_score": round(score, 2), "marches": marches,
-            "my_power_digits": digits((640, 338, 1000, 372)), "opp_power_digits": digits((640, y - 128, 940, y - 92))}
+            "my_power_digits": digits(L.get("my_pw", (640, 338, 1000, 372)), banner=mode == "rank"),
+            "opp_power_digits": digits((lambda b: (b[0], y + b[1], b[2], y + b[3]))(L.get("opp_pw", (640, -128, 940, -92))))}
 
 
 # ----------------------------------------------------- commander screens

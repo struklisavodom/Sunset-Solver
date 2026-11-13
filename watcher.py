@@ -23,7 +23,7 @@ import priors
 import vision
 
 PENDING_MAX_AGE = 30 * 60
-BUILD = "14 Nov, 04:00"            # shown on the bar when idle, so you can tell a restart took effect
+BUILD = "14 Nov, 05:00"            # shown on the bar when idle, so you can tell a restart took effect
 
 
 def screen_grabber(get_settings):
