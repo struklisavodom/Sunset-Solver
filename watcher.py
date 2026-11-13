@@ -23,7 +23,7 @@ import priors
 import vision
 
 PENDING_MAX_AGE = 30 * 60
-BUILD = "14 Nov, 05:00"            # shown on the bar when idle, so you can tell a restart took effect
+BUILD = "14 Nov, 06:00"            # shown on the bar when idle, so you can tell a restart took effect
 
 
 def screen_grabber(get_settings):
@@ -222,7 +222,7 @@ class Watcher:
         fresh = kind == "challenge" and self.live_enemy and time.time() - self.live_enemy["t"] < 8
         self.bar_strip = self._strip if fresh else None
         if not vision.ocr_available():
-            self.hint = ("Text reader (Tesseract) not found: nothing can be logged. See README", "red")
+            self.hint = ("Text reader off: " + (vision.OCR_PROBLEM or "Tesseract not found"), "red")
             return
         busy = self._busy
         if kind == "prebattle":

@@ -539,8 +539,7 @@ def auto_page(conn, probe=None):
 packages ({esc(AUTO_ERR)}).</p><pre>pip install pillow numpy scipy mss pytesseract</pre>
 <p>Then install the Tesseract OCR program (see README) and restart the app.</p></div>""")
     st = WATCHER.status()
-    ocr = "" if st["ocr"] else ("<p class=warn>Tesseract OCR was not found, so names and numbers cannot be read. "
-                                "Install it (see README) and restart the app.</p>")
+    ocr = "" if st["ocr"] else (f"<p class=warn>Names and numbers cannot be read: {esc(vision.OCR_PROBLEM)}.</p>")
     mon, region = db.get_setting(conn, "monitor", "1"), db.get_setting(conn, "region", "")
     probe_html = f"<div class=card><h3>What I read on this frame</h3><pre>{esc(probe)}</pre></div>" if probe else ""
     return page("Auto-log", f"""<h2>Auto-log</h2>{ocr}

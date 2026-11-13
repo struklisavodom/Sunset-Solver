@@ -69,26 +69,53 @@ STATS_COLS = {
 _TESS_OK = None
 
 
+OCR_PROBLEM = ""     # why OCR is off, in words the user can act on ("" when it works)
+
+
+def find_tesseract():
+    """tesseract.exe: TESSERACT_CMD, the folder the Windows installer records in the registry, PATH,
+    then the usual folders on every drive. -> path or None"""
+    import shutil
+    cands = [os.environ.get("TESSERACT_CMD")]
+    if os.name == "nt":
+        try:
+            import winreg
+            for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                for key in (r"SOFTWARE\Tesseract-OCR", r"SOFTWARE\WOW6432Node\Tesseract-OCR"):
+                    try:
+                        with winreg.OpenKey(hive, key) as k:
+                            cands.append(os.path.join(winreg.QueryValueEx(k, "InstallDir")[0], "tesseract.exe"))
+                    except OSError:
+                        pass
+        except ImportError:
+            pass
+    cands.append(shutil.which("tesseract"))
+    if os.name == "nt":
+        cands.append(os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"))
+        cands.append(os.path.expandvars(r"%LOCALAPPDATA%\Tesseract-OCR\tesseract.exe"))
+        for drive in "CDEFG":
+            for folder in (r"Program Files\Tesseract-OCR", r"Program Files (x86)\Tesseract-OCR", "Tesseract-OCR"):
+                cands.append(rf"{drive}:\{folder}\tesseract.exe")
+    return next((c for c in cands if c and os.path.isfile(c)), None)
+
+
 def ocr_available():
-    global _TESS_OK
+    global _TESS_OK, OCR_PROBLEM
     if _TESS_OK is None:
         _TESS_OK = False
-        if pytesseract is not None:
-            cmd = os.environ.get("TESSERACT_CMD")
-            if not cmd and os.name == "nt":
-                for p in (r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                          r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-                          os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe")):
-                    if os.path.exists(p):
-                        cmd = p
-                        break
-            if cmd:
-                pytesseract.pytesseract.tesseract_cmd = cmd
-            try:
-                pytesseract.get_tesseract_version()
-                _TESS_OK = True
-            except Exception:
-                pass
+        if pytesseract is None:
+            OCR_PROBLEM = "Python package missing: run  pip install pytesseract"
+            return _TESS_OK
+        cmd = find_tesseract()
+        if not cmd:
+            OCR_PROBLEM = "Tesseract program not found: install it (README step 3) and restart"
+            return _TESS_OK
+        pytesseract.pytesseract.tesseract_cmd = cmd
+        try:
+            pytesseract.get_tesseract_version()
+            _TESS_OK = True
+        except Exception as e:
+            OCR_PROBLEM = f"Tesseract at {cmd} does not run ({type(e).__name__}): reinstall it"
     return _TESS_OK
 
 

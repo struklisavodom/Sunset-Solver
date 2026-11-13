@@ -208,6 +208,21 @@ assert updater.install(buf.getvalue(), dest) == 2
 assert open(os.path.join(dest, "rok_canyon.db")).read() == "mine" and os.path.isfile(os.path.join(dest, "sub", "new.py"))
 assert not os.path.exists(os.path.join(dest, "captures")) and not os.path.exists(os.path.join(os.path.dirname(dest), "evil.py"))
 print("Updater OK")
+# text reader: each way it can be missing gets its own message the user can act on
+import vision  # noqa: E402
+real_pt, real_find = vision.pytesseract, vision.find_tesseract
+try:
+    vision._TESS_OK, vision.pytesseract = None, None
+    assert not vision.ocr_available() and "pip install pytesseract" in vision.OCR_PROBLEM
+    vision._TESS_OK, vision.pytesseract, vision.find_tesseract = None, real_pt, lambda: None
+    assert not vision.ocr_available() and "program not found" in vision.OCR_PROBLEM
+    fake = os.path.join(tempfile.mkdtemp(), "tesseract.exe"); open(fake, "w").close()
+    os.environ["TESSERACT_CMD"] = fake
+    assert real_find() == fake                     # TESSERACT_CMD wins over everything else
+finally:
+    os.environ.pop("TESSERACT_CMD", None)
+    vision._TESS_OK, vision.pytesseract, vision.find_tesseract, vision.OCR_PROBLEM = None, real_pt, real_find, ""
+print("OCR messages OK")
 # threat: an enemy commander that has hit hard before gets your tank opposite it
 th = os.path.join(tempfile.mkdtemp(), "th.db"); c7 = db.connect(th); priors.seed_commanders(c7)
 for _ in range(3):
