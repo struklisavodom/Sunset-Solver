@@ -13,7 +13,7 @@ import time
 import urllib.request
 import zipfile
 
-REPO = ""                       # "owner/name" on GitHub; empty = no update checks
+REPO = "struklisavodom/Sunset-Solver"   # "owner/name" on GitHub; empty = no update checks
 BRANCH = "main"
 HERE = os.path.dirname(os.path.abspath(__file__))
 KEEP = ("rok_canyon.db", "captures/", "gear.json", "shared.json", "portraits/", "testshots/")
