@@ -1,221 +1,101 @@
 # Sunset Canyon helper
 
-A local tool for Rise of Kingdoms (PC client). It watches your screen, logs every Sunset
-Canyon fight by itself, and suggests lineups that improve as your log grows.
-Everything stays on your computer: one database file (`rok_canyon.db`), learned portraits
-(`portraits/`) and a screenshot per logged fight (`captures/`).
+A helper for **Rise of Kingdoms on PC**. It watches your screen while you play Sunset Canyon
+(and Lost Canyon), logs every fight by itself, and tells you on a small bar how likely you are
+to win and what to change. The more you play, the better its advice gets.
 
-## Install (once)
+---
 
-1. Python 3.9 or newer from python.org (tick "Add to PATH").
-2. In a terminal, in this folder:
+## Get it
 
-       pip install pillow numpy scipy mss pytesseract
+Get **Sunset Helper for friends.zip** from the person who shared this with you.
 
-3. Tesseract OCR, the program that reads the text on screen. On Windows, install it from
-   https://github.com/UB-Mannheim/tesseract/wiki and keep the default folder
-   (`C:\Program Files\Tesseract-OCR`). If you install it elsewhere, set the environment
-   variable `TESSERACT_CMD` to the full path of `tesseract.exe`.
+> Don't use GitHub's *Download ZIP*: that copy is missing the shared-data key and the learned
+> commander portraits, so it can't share fights or recognise faces.
 
-Check the install with the bundled screenshots:
+## Install (once, about 10 minutes)
 
-    python test_vision.py        (should end with ALL CHECKS PASSED)
+1. **Unzip** the zip, for example onto your Desktop.
+2. **Python:** install it from [python.org](https://www.python.org/downloads/).
+   On the first installer screen, tick **"Add python.exe to PATH"**.
+3. **Tesseract** (reads text on screen): install the Windows version from
+   [UB-Mannheim/tesseract](https://github.com/UB-Mannheim/tesseract/wiki). Keep the default folder.
+4. **Packages:** open the unzipped **Sunset Helper** folder, click the address bar, type `cmd`,
+   press Enter, and paste:
 
-## Run
+   ```
+   pip install pillow numpy scipy mss pytesseract
+   ```
 
-Double-click **Start Sunset Helper.bat**. No console window opens; the status bar appears in the
-bottom-left corner. Double-click the bar to open the web pages, right-click it to quit.
+5. **Start:** double-click **Start Sunset Helper.bat**. A small bar appears in the bottom-left corner.
 
-For a taskbar button: run **Create taskbar shortcut.bat** once, then right-click the new
-"Sunset Canyon Helper" icon on your Desktop and choose "Pin to taskbar".
+Optional: run **Create taskbar shortcut.bat** once for a Desktop icon you can pin to the taskbar.
 
-(`python app.py` in a terminal still works and shows error messages if something is wrong.)
+## Play
 
-Updating: the `.py` files are replaced in place; quit (right-click the bar) and start again.
-While idle the bar shows the build time, so you can tell the restart took effect.
+- Run the game **windowed or borderless** (not exclusive full screen), so the bar can show.
+- Just play. The bar tells you what is happening:
 
-## Using it
-
-1. **Auto-log**: press Start, then play. The game must be visible on the chosen monitor,
-   full screen or as a 16:9 window (enter the window's game area under Capture settings).
-   The picture under "What I see" should show the game.
-2. Each fight is saved from three screens:
-   - pre-battle screen: both lineups, grid positions, troop counts
-   - VICTORY / DEFEAT screen: result, rank and star change
-   - STATS screen (optional, tap STATS after a fight): units left, kills, healing, secondary commanders
-4. **Teach portraits**: faces seen without a printed name (mostly secondary commanders) wait
-   here. Name each one once.
-5. **History**: every fight. Entries marked "check" had something the reader was unsure of;
-   open edit, fix, save.
-6. **Report**: which of your commanders do the damage, which is the weak link, and which enemy
-   commanders hurt you most. After every fifth fight the bar shows the top tip.
-7. **Commanders**: troop type and role per commander (drives the positioning advice). Your roster
-   fills itself from the commanders you field.
-
-Tip: keep "Skip Battle" either on or off as you like, both work. Tapping STATS after a fight
-gives the tool much better data (how decisively each march won or lost).
-
-## Sharing with friends
-
-Everyone keeps their own database; finished fights are also uploaded to one shared Supabase table
-and everyone's fights are pooled on the **Shared** page. Only a random player id is sent, never
-player or opponent names.
-
-Setup (one person, once): follow the steps on the **Shared** page (free Supabase project, one SQL
-script, then `shared.json` with the project URL and anon key). Then run
-
-    python make_friend_copy.py
-
-and send **Sunset Helper for friends.zip**. It holds the program, the learned portraits and
-`shared.json`, but not your database, captures or gear.
-
-Friends: unzip, do the Install steps above, start **Start Sunset Helper.bat**.
-
-## The status bar (overlay)
-
-A small bar sits in the bottom-left corner of your screen while the app runs:
-
-- orange "Reading ..., wait": the screen is still being read
-- green "Line-ups read. OK to start": safe to press OK (move marches first if you like; it re-reads)
-- green "Battle #N saved. Continue": the result is stored
-- on the challenge list and pre-battle screen it also shows a rough win chance
-
-The win chance starts from the troop (or level) ratio and shifts toward your own record
-against line-ups sharing commanders with this one. With few logged fights it is a rough guide.
-The bar cannot draw over exclusive full screen: run the game windowed or borderless. Drag it
-to move it. Start with `python app.py --no-overlay` to turn it off.
-
-## Where to invest (Report)
-
-Built from the fight log, Sunset and Lost Canyon pooled. Damage is kills divided by the march's
-own troops; troops left is the share still standing. Both need the STATS screen, so tap STATS
-after fights. Equipment comes from `gear.json` in this folder (rarity per slot for each primary
-commander; secondaries' gear does not count in battle). Edit that file when you change gear.
-
-## Scouting and expertise
-
-- Auto-log starts with the app; there is no Start button to remember.
-- Every opponent line-up you open on the challenge list is remembered, fought or not. The
-  Report page shows which commanders and pairings opponents field most. Opening the arrows of
-  higher-ranked players is the quickest way to teach the tool the strong line-ups.
-- Expertised commanders (pale metallic portrait frame) are detected on the challenge list,
-  shown on the bar, and counted as stronger in the win chance.
-- In History, edit lets you correct names, lanes and troop counts.
-
-## Positioning advice
-
-Once the pre-battle line-ups are read, the bar adds what to move. Rules, in order:
-
-1. Roles: tanks in the front column, area damage and support behind (Commanders page).
-2. At least two marches in front.
-3. Against this enemy: a march attacks the enemy directly facing it first (same row), then the
-   nearest. So a single-target nuker is put opposite their tank, and a back-column march with
-   no front march in its row gets called out when an enemy faces that row.
-4. Your own log: a commander that clearly did better in the other column.
-
-Rule 3 comes from Sunset Canyon guides (AllClash, riseofkingdomsguides). Ranges and skill
-shapes are not modelled.
-
-## Commander data
-
-Look at a commander in the game (key P) and the tool stores what each view prints large:
-
-| View | What is stored |
+| The bar says | Meaning |
 |---|---|
-| Main view | level, stars, unit capacity, power |
-| SKILLS | the four skill levels, and whether the expertise skill is unlocked |
-| Gear view, then the "?" button | every stat bonus the gear gives (Infantry Attack +8%, ...) |
-| TALENTS | a picture of the tree (the point totals are too small to read reliably) |
+| *Reading..., wait* (orange) | Hold on a moment |
+| *...captured. Continue / OK to start* (green) | Safe to click on |
+| *Scanned 5/5 \| win ~62%* | An opponent you opened; green = good odds, red = bad |
+| Blue lines | Tips: what to move, what to try next time |
+| *Update available* | Double-click the bar, then **Update now** |
 
-Open the main view first: SKILLS and TALENTS show no name, so they are filed under the commander
-you opened just before. The bar confirms each read; everything is listed on **My commanders**.
-Earlier versions read skills and gear rarity from small icons on the main view; those reads were
-unreliable and that data has been cleared.
+- **Tap STATS after each fight.** It gives the tool far better data.
+- **Scout:** open the arrow next to players on the challenge list or the leaderboard.
+- **Double-click** the bar to open the web pages. **Right-click** it to quit. Drag it to move it.
 
-## Learning from your fights
+## The web pages
 
-Everything the bar says about your chances and your formation is tested on your own fights: a
-model is used only when it predicts fights it had not seen better than your plain win rate does.
-Both are re-tested after every fight; the Home page shows what is currently in use.
+| Page | What it shows |
+|---|---|
+| **Home** | Your record, and what the tool has learned so far |
+| **Report** | Who does your damage, the weak link, what to upgrade, what opponents field |
+| **History** | Every fight. Ones marked *check* need a quick look: open **edit** and fix |
+| **My commanders** | Your current team, and each commander's level, skills and gear |
+| **Shared** | Everyone's fights pooled (anonymous) |
+| More → **Teach portraits** | Faces it saw without a name: type the name once |
+| More → **Auto-log** | What the tool sees, capture settings, "show the bar in screenshots" |
 
-- **Win chance:** candidates are the opponent's power relative to yours, the enemy commanders,
-  and both together. With 44 fights, "power and enemy commanders" passed. Powers are read on the
-  pre-battle screen and on the challenge list, so you see a real chance per scouted opponent and
-  "Best of N scouted" when they differ.
-- **Formation:** each fight is scored 0 to 100 (how much of your army survived a win, or of
-  theirs survived a loss). The model estimates what each commander adds in each grid cell,
-  allowing for the opponent's power, and tunes its own caution on your fights. If positions stop
-  improving predictions, it stops giving formation tips. Roles stay rules: tanks in front,
-  back-line commanders behind, at least two in front.
+To keep your commanders up to date, open them in the game now and then (key **P**), plus their
+**SKILLS** and the gear **"?"** popup.
 
-## Pages
+## Updates
 
-Home, Report, History, My commanders and **Data** are in the menu; Auto-log, Teach portraits and
-Commanders are under **More**. The Data page shows the database filling up live: every new fight,
-commander read and scouted line-up appears within 3 seconds, with ticks for what each fight
-holds (troop counts, STATS screen, powers, scouting). It is the quickest way to spot a fight
-where you forgot to tap STATS.
+When the bar says **Update available**, double-click it and press **Update now** on Home.
+It installs the new version and restarts. Your fights and settings are kept.
 
-## Threat tip
+## Something wrong?
 
-On the pre-battle screen, the enemy commander that has done the most damage to you in earlier
-fights (3 or more) is named, and the bar suggests facing it with your tank (a march attacks the
-enemy in its own row first).
+- **Nothing happens on start:** open a `cmd` window in the folder (step 4) and run `python app.py`.
+  Send the error message to whoever shared the app.
+- **Something was read wrongly:** More → Auto-log → *Capture now and show what I read*, and send
+  that text plus a screenshot.
 
-## Data checks
+---
 
-Each saved fight is checked: impossible troop counts and misread powers are cleared, and fights
-where a march is missing (a game notification can cover a name plate) are flagged in History,
-where edit lets you add it. Opponents you scouted on the challenge list and then fought get their
-levels, expertise and secondaries copied into the fight.
+## How it works (short)
 
-## Experiments after losses
+- **Reading:** names and troop counts come from the pre-battle screen. Result and stars come
+  from the VICTORY/DEFEAT screen. Kills and secondaries come from STATS. Each name it reads also
+  teaches it that commander's face, which is how it recognises line-ups on screens that only show portraits.
+- **Advice only from proof:** the win chance and formation tips come from models tested on your
+  own fights. A model is used only if it predicts fights it had not seen better than your plain
+  win rate. Both are re-tested after every fight. Positioning rules from the guides (tanks in front,
+  at least two marches in front, nukers opposite their tank) apply until your own data says more.
+- **Your data stays yours:** everything is stored in this folder (`rok_canyon.db`, `captures/`).
+  Shared fights carry a random player id only, never player or opponent names.
 
-When the formation on screen has lost more than it has won against similar line-ups (two or
-more enemy commanders in common), the bar adds one change you have not tried against them yet,
-for example "Experiment: 0-2 with this formation vs similar line-ups. Try Joan of Arc in the back
-column (swap with Aethelflaed), not tried yet". It starts with the march that did least
-damage in those losses and never goes against a commander's role. After a loss the same
-suggestion is shown as "Next time: ...". Fights from Sunset and Lost Canyon are pooled.
-It only moves marches for now; suggesting different commanders needs My roster filled in.
+## For the person who shares it
 
-## Lost Canyon and Prime commanders
-
-- The Lost Canyon challenge list is recognised as well as the Sunset one; fights started from
-  it are saved with mode "lost".
-- Epic commanders that also exist as a legendary Prime with the same printed name are told
-  apart by the portrait frame: the non-purple one is logged as "<name> Prime".
-
-## How recognition works
-
-- Commander names and troop counts are read from the name plates on the pre-battle screen.
-- Each time a name is read, the tool saves that commander's portrait. That is how it later
-  recognises commanders on the challenge list and stats screen, which show portraits only.
-  So an opponent's lineup is recognised on the challenge list only for commanders the tool
-  has already met in a fight (or that you named on the Teach page).
-- Grid position: column 0 is the column nearest the enemy (stored as "front"), column 1 the
-  one behind it ("back"); rows count from the top.
-
-## How the suggestions work
-
-- Starting guess: canyon grade, commander level, tank in front and damage dealers behind,
-  and the troop triangle (archers beat infantry, infantry beat cavalry, cavalry beat archers).
-- Learning: for every logged fight it tracks how each of your commanders did against each
-  enemy commander and in each lane. With few fights the starting guess dominates.
-
-It is a heuristic, not a battle simulator: the game does not publish its formulas.
-
-## If something is read wrongly
-
-On Auto-log, press "Capture now and show what I read" while the screen is up, and send that
-text (and a screenshot) so the reader can be tuned. You can also run
-`python vision.py some_screenshot.png`.
-
-## Files
-
-- `app.py` web interface            - `watcher.py` background auto-logger
-- `vision.py` screen reader         - `portraits.py` portrait library
-- `engine.py` recommender           - `db.py` database
-- `overlay.py` on-screen status bar
-- `priors.py` starting commander data and name list
-- `test_vision.py`, `test_e2e.py`, `smoke_test.py` self-checks; `testshots/` sample screens
+- **Sharing setup (once):** the **Shared** page lists the steps: a free Supabase project, one SQL
+  script, then `shared.json` with the project URL and the **publishable** key (never the secret key).
+- **Make the zip for friends:** `python make_friend_copy.py`. It packs the program, the learned
+  portraits and `shared.json`, without your database, captures or gear.
+- **Release an update:** raise the number in `version.txt`, commit and push to GitHub. Friends
+  see *Update available* within the hour.
+- **Self-checks:** `python smoke_test.py`, `python test_vision.py`, `python test_e2e.py`
+  (all should end with ALL CHECKS PASSED).
