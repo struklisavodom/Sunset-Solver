@@ -1,19 +1,26 @@
-# Sunset Canyon helper
+<p align="center"><img src="assets/banner.svg" alt="Sunset Canyon Helper" width="100%"></p>
 
-A helper for **Rise of Kingdoms on PC**. It watches your screen while you play Sunset Canyon
-(and Lost Canyon), logs every fight by itself, and tells you on a small bar how likely you are
-to win and what to change. The more you play, the better its advice gets.
+<p align="center">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-PC%20client-e8a93a?style=for-the-badge&logo=windows&logoColor=white">
+  <img alt="Python 3.9+" src="https://img.shields.io/badge/Python-3.9%2B-c9672e?style=for-the-badge&logo=python&logoColor=white">
+  <img alt="Last update" src="https://img.shields.io/github/last-commit/struklisavodom/Sunset-Solver?style=for-the-badge&color=5a2a3c&label=updated">
+</p>
+
+<p align="center"><b>Watches your screen while you play Sunset Canyon (and Lost Canyon), logs every fight by itself,<br>
+and tells you on a small bar how likely you are to win and what to change.</b><br>
+The more you play, the better its advice gets.</p>
 
 ---
 
-## Get it
+## 📦 Get it
 
 Get **Sunset Helper for friends.zip** from the person who shared this with you.
 
+> [!WARNING]
 > Don't use GitHub's *Download ZIP*: that copy is missing the shared-data key and the learned
 > commander portraits, so it can't share fights or recognise faces.
 
-## Install (once, about 10 minutes)
+## 🛠️ Install
 
 1. **Unzip** the zip, for example onto your Desktop.
 2. **Python:** install it from [python.org](https://www.python.org/downloads/).
@@ -29,26 +36,31 @@ Get **Sunset Helper for friends.zip** from the person who shared this with you.
 
 5. **Start:** double-click **Start Sunset Helper.bat**. A small bar appears in the bottom-left corner.
 
-Optional: run **Create taskbar shortcut.bat** once for a Desktop icon you can pin to the taskbar.
+> [!TIP]
+> Run **Create taskbar shortcut.bat** once for a Desktop icon you can pin to the taskbar.
 
-## Play
+## ⚔️ Play
 
-- Run the game **windowed or borderless** (not exclusive full screen), so the bar can show.
-- Just play. The bar tells you what is happening:
+> [!IMPORTANT]
+> Run the game **windowed or borderless** (not exclusive full screen), so the bar can show.
+
+Just play. The bar tells you what is happening:
 
 | The bar says | Meaning |
 |---|---|
-| *Reading..., wait* (orange) | Hold on a moment |
-| *...captured. Continue / OK to start* (green) | Safe to click on |
-| *Scanned 5/5 \| win ~62%* | An opponent you opened; green = good odds, red = bad |
-| Blue lines | Tips: what to move, what to try next time |
-| *Update available* | Double-click the bar, then **Update now** |
+| 🟠 *Reading..., wait* | Hold on a moment |
+| 🟢 *...captured. Continue / OK to start* | Safe to click on |
+| 🟢 / 🔴 *Scanned 5/5 \| win ~62%* | An opponent you opened: green = good odds, red = bad |
+| 🔵 Blue lines | Tips: what to move, what to try next time |
+| ⬆️ *Update available* | Double-click the bar, then **Update now** |
 
-- **Tap STATS after each fight.** It gives the tool far better data.
+> [!TIP]
+> **Tap STATS after each fight.** It gives the tool far better data.
+
 - **Scout:** open the arrow next to players on the challenge list or the leaderboard.
 - **Double-click** the bar to open the web pages. **Right-click** it to quit. Drag it to move it.
 
-## The web pages
+## 🗺️ The web pages
 
 | Page | What it shows |
 |---|---|
@@ -63,12 +75,12 @@ Optional: run **Create taskbar shortcut.bat** once for a Desktop icon you can pi
 To keep your commanders up to date, open them in the game now and then (key **P**), plus their
 **SKILLS** and the gear **"?"** popup.
 
-## Updates
+## ⬆️ Updates
 
 When the bar says **Update available**, double-click it and press **Update now** on Home.
 It installs the new version and restarts. Your fights and settings are kept.
 
-## Something wrong?
+## 🩹 Something wrong?
 
 - **Nothing happens on start:** open a `cmd` window in the folder (step 4) and run `python app.py`.
   Send the error message to whoever shared the app.
@@ -77,7 +89,7 @@ It installs the new version and restarts. Your fights and settings are kept.
 
 ---
 
-## How it works (short)
+## 🧠 How it works
 
 - **Reading:** names and troop counts come from the pre-battle screen. Result and stars come
   from the VICTORY/DEFEAT screen. Kills and secondaries come from STATS. Each name it reads also
@@ -89,7 +101,7 @@ It installs the new version and restarts. Your fights and settings are kept.
 - **Your data stays yours:** everything is stored in this folder (`rok_canyon.db`, `captures/`).
   Shared fights carry a random player id only, never player or opponent names.
 
-## For the person who shares it
+## 🔑 For the person who shares it
 
 - **Sharing setup (once):** the **Shared** page lists the steps: a free Supabase project, one SQL
   script, then `shared.json` with the project URL and the **publishable** key (never the secret key).

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="Sunset Canyon Helper: logs your fights, tells you your odds, learns what wins">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1430"/>
+      <stop offset="0.55" stop-color="#5a2a3c"/>
+      <stop offset="1" stop-color="#c9672e"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe3a1"/>
+      <stop offset="0.6" stop-color="#f5b04a"/>
+      <stop offset="1" stop-color="#f5b04a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="300" fill="url(#sky)"/>
+  <circle cx="930" cy="215" r="120" fill="url(#sun)"/>
+  <!-- canyon walls -->
+  <path d="M0 300 L0 190 L70 170 L120 200 L190 150 L260 185 L330 175 L380 215 L430 300 Z" fill="#2a1520"/>
+  <path d="M640 300 L700 230 L760 245 L820 200 L900 235 L980 205 L1050 225 L1120 180 L1200 200 L1200 300 Z" fill="#2a1520"/>
+  <path d="M0 300 L0 240 L90 225 L170 250 L260 235 L360 260 L470 300 Z" fill="#14090f"/>
+  <path d="M760 300 L850 262 L960 270 L1060 245 L1200 255 L1200 300 Z" fill="#14090f"/>
+  <!-- hex marks, like the game's commander frames -->
+  <g fill="none" stroke="#e8a93a" stroke-width="3" opacity="0.9">
+    <polygon points="78,62 102,48 126,62 126,90 102,104 78,90"/>
+    <polygon points="136,96 160,82 184,96 184,124 160,138 136,124" opacity="0.6"/>
+  </g>
+  <text x="210" y="112" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#ffffff">Sunset Canyon Helper</text>
+  <text x="212" y="156" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="24" fill="#f5c77a">Logs your fights · tells you your odds · learns what wins</text>
+  <text x="212" y="190" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="17" fill="#d9c3c9">for Rise of Kingdoms on PC, Sunset and Lost Canyon</text>
+</svg>
