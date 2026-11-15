@@ -23,7 +23,7 @@ import priors
 import vision
 
 PENDING_MAX_AGE = 30 * 60
-BUILD = "14 Nov, 06:00"            # shown on the bar when idle, so you can tell a restart took effect
+BUILD = "15 Nov, 12:00"            # shown on the bar when idle, so you can tell a restart took effect
 
 
 def screen_grabber(get_settings):
@@ -76,6 +76,7 @@ class Watcher:
         self._cmd_name, self.talents_saved = None, None
         self.skills_seen, self._gear_key, self.gear_seen = None, None, None
         self._skills_fail = 0
+        self._result_miss = False             # the last result read found no result screen
         self._last_kind, self._same = None, 0
         self._thread = None
         # slow reads run on a worker, so the bar can say "captured, carry on" as soon as the frame is taken.
@@ -192,6 +193,10 @@ class Watcher:
             return kind
         # the conditions are checked again when the job runs: an earlier job may still be filling them in
         if kind == "challenge":
+            if self.pending and "prebattle" not in self._busy:
+                # after a real fight the game goes result -> stats -> list; a fight still pending here was not fought
+                self.pending = None
+                self.log("Pre-battle left without fighting: line-ups dropped")
             self._submit("challenge", self._on_challenge, img)
         elif kind == "prebattle":
             self._submit("prebattle", self._on_prebattle, img)
@@ -235,7 +240,9 @@ class Watcher:
                 self.hint = ("Line-ups read" + (f" ({unsure} unsure)" if unsure else "") + ". OK to start"
                              + self._chance_text() + (f"\n{self.advice[0]}" if self.advice else ""), "green")
         elif kind == "dark" and self.pending:
-            self.hint = (("Result captured. Continue", "green") if "result" in busy else ("Reading result, wait...", "orange"))
+            # once a dark screen proved not to be the result, say so instead of "reading" on every poll
+            self.hint = (("Reading result, wait...", "orange") if "result" in busy and not self._result_miss
+                         else ("Fight under way...", "orange"))
         elif kind == "dark" and time.time() - self._saved_at < 60:
             self.hint = (f"{lb['res']['result'].upper()} saved. Continue (tap STATS for more data)"
                          + (f"\nNext time: {self.next_time[12:]}" if self.next_time else "")
@@ -431,6 +438,7 @@ class Watcher:
                     self.lib.stash_unknown(img, m["hex"][0], m["hex"][1], portraits.CTX_SIZE["pre"], "pre")
         self.lib.prune_unknown()
         self.pending = {"pre": pre, "sig": sig, "img": img.copy(), "t": time.time()}
+        self._result_miss = False
         self._estimate([m["name"] for m in pre["enemy"]], pre["header"].get("my_power"), pre["header"].get("opp_power"),
                        [m for m in pre["mine"] if m["name"]], [m for m in pre["enemy"] if m["name"]])
         fmt = lambda s: ", ".join(m["name"] or "?" for m in pre[s])
@@ -438,6 +446,7 @@ class Watcher:
 
     def _on_result(self, img):
         res = vision.parse_result(img)
+        self._result_miss = not res
         if not res:
             return
         pre = self.pending["pre"]

@@ -138,6 +138,8 @@ def main():
               (vision.classify(img), vision.challenge_mode(img), [m["level"] for m in ch["marches"]] if ch else None,
                vision.pick_power(ch["opp_power_digits"], 2021535) if ch else None), ("challenge", "rank", levels, opp))
     check("stats screen is not taken for the leaderboard", vision.challenge_mode(load("stats")), None)
+    check("challenge list with REFRESH grey (cooling down) still recognised",
+          (vision.classify(load("challenge_lost_grey")), vision.challenge_mode(load("challenge_lost_grey"))), ("challenge", "lost"))
     print("stats screen")
     st = vision.parse_stats(load("stats"), lib2, ["Boudica", "Lohar", "Sun Tzu", "Bjorn Ironside", "Cao Cao"],
                             ["Cao Cao", "Sun Tzu", "Mulan", "Pelagius", "Lohar"])

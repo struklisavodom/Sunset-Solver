@@ -311,7 +311,11 @@ def challenge_mode(img):
     for mode, L in CHALLENGE.items():
         if cyan_frac(img, L["refresh"]) > L.get("min", 0.6):
             return mode
-    return None
+    # REFRESH turns grey while it cools down: the column of cyan CHALLENGE buttons still gives the list away
+    # (Lost Canyon's buttons sit a little further left than Sunset's; no other screen has such a column)
+    cols = {"lost": cyan_frac(img, (0.60, 0.36, 0.68, 0.76)), "sunset": cyan_frac(img, (0.62, 0.40, 0.71, 0.74))}
+    best = max(cols, key=cols.get)
+    return best if cols[best] >= 0.15 else None
 
 
 def is_prime(img, cx, cy, s=62):

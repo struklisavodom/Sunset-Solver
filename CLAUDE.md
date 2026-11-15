@@ -61,7 +61,10 @@ User data, never overwrite: `rok_canyon.db`, `portraits/`, `captures/`, `gear.js
 - Bar on the challenge list: "Scanned n/5 | win ~x%" coloured by the chance (green >=55%, red <=45%), the
   scanned line-up strip cut from the screen underneath (not learned portraits: those show stale secondaries), and a white flash on each newly scanned opponent. Expertise and levels: stored, not shown.
 - Slow reads (challenge, pre-battle, result, stats) run on a worker thread in order (`Watcher._submit`); the bar
-  says "captured" as soon as the frame is taken. Polls every 0.5 s. Each OCR call is a Tesseract process (~0.12 s):
+  says "captured" as soon as the frame is taken (pre-battle, stats; the result read takes ~0.6 s and only says
+  "Reading result", because many dark screens are not results: after one miss it says "Fight under way...").
+  Reaching the challenge list drops a pending fight (it was not fought). The list is also recognised by its
+  column of cyan CHALLENGE buttons, since REFRESH is grey while it cools down. Polls every 0.5 s. Each OCR call is a Tesseract process (~0.12 s):
   run independent reads side by side.
 
 ## Where each fact comes from

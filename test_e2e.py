@@ -196,7 +196,7 @@ for name in ["stats", "stats"]:             # stats arrive while the result may 
     wb.step(shot(name))
 drain()
 check("captured messages", got, ["Line-ups captured. OK to start (reading...)", "Line-ups read",
-                                 "Result captured. Continue"])
+                                 "Reading result, wait..."])
 check("result and stats saved in order", (wb.saved, wb.last_battle["stats_done"]), (1, True))
 
 print("start-up code")
@@ -206,6 +206,20 @@ _main = next(t for t in _mod.get_children() if t.get_name() == "main")
 _imported = {s.get_name() for s in _mod.get_symbols() if s.is_imported()}
 # a module imported again inside main() is a local name there: using it earlier in main() crashes the start
 check("main() does not shadow module imports", sorted(_imported & {s.get_name() for s in _main.get_symbols() if s.is_local()}), [])
+
+print("a pre-battle left without fighting (Nov 15): no endless result reading, the list ends it")
+wc = watcher.Watcher(lib=lib, shot_dir=os.path.join(tmp, "captures"), stable_polls=2)
+for name in ["prebattle", "prebattle"]:
+    wc.step(shot(name))
+black = Image.new("RGB", (1920, 1080), (12, 12, 16))           # a dark screen that is not a result
+hints = []
+for _ in range(4):
+    wc.step(black)
+    hints.append(wc.hint[0])
+check("dark non-result screen: steady 'Fight under way'", hints[-2:], ["Fight under way...", "Fight under way..."])
+for name in ["challenge_lost_grey", "challenge_lost_grey"]:   # REFRESH grey after a refresh
+    wc.step(shot(name))
+check("list with grey REFRESH recognised, abandoned fight dropped", (wc.screen, wc.pending, wc.saved), ("challenge", None, 0))
 
 print("every page loads")
 import app  # noqa: E402
