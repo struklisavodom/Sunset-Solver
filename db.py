@@ -57,6 +57,12 @@ CREATE TABLE IF NOT EXISTS pairings (      -- primary + secondary combinations r
     note          TEXT DEFAULT '',
     PRIMARY KEY (primary_cmd, secondary_cmd)
 );
+CREATE TABLE IF NOT EXISTS face_links (   -- a queued Teach face and the march whose secondary it is
+    file      TEXT,
+    battle_id INTEGER,
+    team      TEXT,
+    primary_cmd TEXT
+);
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -209,6 +215,32 @@ def update_battle_stats(conn, battle_id, side_rows):
     clear_bad_secondaries(conn)
     conn.commit()
     return n
+
+
+def link_face(conn, file, battle_id, team, primary):
+    if file:
+        conn.execute("INSERT INTO face_links VALUES (?,?,?,?)", (file, battle_id, team, primary))
+        conn.commit()
+
+
+def fill_face(conn, file, name):
+    """A queued face got its name: fill the secondary of every march it came from (only where none
+    is recorded; an impossible pairing is cleared again right away). -> marches filled"""
+    n = 0
+    for r in conn.execute("SELECT battle_id, team, primary_cmd FROM face_links WHERE file=?", (file,)).fetchall():
+        n += conn.execute("UPDATE marches SET secondary_cmd=? WHERE battle_id=? AND team=? AND primary_cmd=? "
+                          "AND secondary_cmd=''", (name, *r)).rowcount
+    if n:
+        ensure_commander(conn, name)
+    conn.execute("DELETE FROM face_links WHERE file=?", (file,))
+    clear_bad_secondaries(conn)
+    conn.commit()
+    return n
+
+
+def drop_face(conn, file):
+    conn.execute("DELETE FROM face_links WHERE file=?", (file,))
+    conn.commit()
 
 
 def sync_roster(conn):

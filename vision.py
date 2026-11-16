@@ -587,8 +587,8 @@ def parse_stats(img, lib=None, my_names=None, enemy_names=None, stash=False):
                 sname, ssim, _ = lib.identify(img, cx + dx, cy + dy, CTX_SIZE["sec"],
                                               min_sim=0.72, min_margin=0.12)
                 row["secondary"] = sname
-                if sname is None and stash:
-                    lib.stash_unknown(img, cx + dx, cy + dy, CTX_SIZE["sec"], "sec")
+                if sname is None and stash:     # queued for Teach; naming it there fills this march in
+                    row["secondary_file"] = lib.stash_unknown(img, cx + dx, cy + dy, CTX_SIZE["sec"], "sec")
             out[side].append(row)
     return out
 

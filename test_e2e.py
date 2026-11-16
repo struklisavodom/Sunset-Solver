@@ -91,6 +91,15 @@ check("enemy recognised on the challenge list afterwards", w.live_enemy["names"]
       ["Cao Cao", "Sun Tzu", "Mulan", "Lohar", "Pelagius"])
 check("levels read", [m["level"] for m in w.live_enemy["marches"]], [38, 50, 34, 32, 34])
 print("     unknown portraits waiting on the Teach page:", len(lib.unknown_files()))
+links = conn.execute("SELECT file, battle_id, team, primary_cmd FROM face_links").fetchall()
+check("unknown secondaries are linked to their marches", bool(links) and all(l[0] in lib.unknown_files() for l in links), True)
+f0, b0, t0, p0 = links[0]
+n0 = db.fill_face(conn, f0, "Pyrrhus")                      # as if named on the Teach page
+check("naming the face fills that march", (n0 >= 1, conn.execute(
+    "SELECT secondary_cmd FROM marches WHERE battle_id=? AND team=? AND primary_cmd=?", (b0, t0, p0)).fetchone()[0],
+    conn.execute("SELECT COUNT(*) FROM face_links WHERE file=?", (f0,)).fetchone()[0]), (True, "Pyrrhus", 0))
+conn.execute("UPDATE marches SET secondary_cmd='' WHERE battle_id=? AND team=? AND primary_cmd=?", (b0, t0, p0))
+conn.commit()                                               # undo: later checks expect the stats-screen reads
 
 print("same screens again do not create a duplicate")
 for name in ["victory", "victory", "stats", "stats"]:

@@ -23,7 +23,7 @@ import priors
 import vision
 
 PENDING_MAX_AGE = 30 * 60
-BUILD = "15 Nov, 12:00"            # shown on the bar when idle, so you can tell a restart took effect
+BUILD = "16 Nov, 10:00"            # shown on the bar when idle, so you can tell a restart took effect
 
 
 def screen_grabber(get_settings):
@@ -436,7 +436,15 @@ class Watcher:
                     self.lib.add(m["name"], img, m["hex"][0], m["hex"][1], portraits.CTX_SIZE["pre"], "pre")
                 elif not m["name"]:
                     self.lib.stash_unknown(img, m["hex"][0], m["hex"][1], portraits.CTX_SIZE["pre"], "pre")
-        self.lib.prune_unknown()
+        sure = self.lib.prune_unknown()
+        if sure:                                     # faces learned since: fill the fights they came from
+            conn = db.connect(self.db_path)
+            try:
+                filled = sum(db.fill_face(conn, f, name) for f, name in sure)
+            finally:
+                conn.close()
+            if filled:
+                self.log(f"Filled in {filled} secondary commander(s) on earlier fights")
         self.pending = {"pre": pre, "sig": sig, "img": img.copy(), "t": time.time()}
         self._result_miss = False
         self._estimate([m["name"] for m in pre["enemy"]], pre["header"].get("my_power"), pre["header"].get("opp_power"),
@@ -522,6 +530,10 @@ class Watcher:
         conn = db.connect(self.db_path)
         try:
             n = db.update_battle_stats(conn, lb["id"], rows)
+            for s in ("mine", "enemy"):             # unknown secondaries: filled in once their face is named
+                for r in st[s]:
+                    if r["name"] and not r["secondary"] and r.get("secondary_file"):
+                        db.link_face(conn, r["secondary_file"], lb["id"], s, r["name"])
         finally:
             conn.close()
         lb["stats_done"] = True

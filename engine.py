@@ -475,49 +475,112 @@ def _fit_logistic(X, Y, lam=0.3):
     return beta[0], beta[1:]
 
 
+def calibration(preds, edges=(0, 0.35, 0.5, 0.65, 1.0001)):
+    """How often you actually won when the model (not having seen the fight) gave a chance in each range.
+    preds: [(chance, won)]. -> [(label, fights, said on average, actually won share)]"""
+    out = []
+    for lo, hi in zip(edges, edges[1:]):
+        g = [(p, y) for p, y in preds if lo <= p < hi]
+        if g:
+            out.append((f"{lo:.0%} to {min(hi, 1):.0%}", len(g), sum(p for p, _ in g) / len(g), sum(y for _, y in g) / len(g)))
+    return out
+
+
+def _shared_rows(conn):
+    """Friends' attack fights (your own uploaded copies left out) as [(feature keys, power feature, won)]."""
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='shared_fights'").fetchone():
+        return []
+    me = conn.execute("SELECT value FROM settings WHERE key='player_id'").fetchone()
+    out = []
+    for r in conn.execute("SELECT result, my_power, opp_power, marches FROM shared_fights WHERE my_side='attack' "
+                          "AND result IN ('win','loss') AND player<>?", (me[0] if me else "",)):
+        try:
+            ms = json.loads(r["marches"])
+        except (TypeError, ValueError):
+            continue
+        out.append((fight_keys([(m.get("team"), m.get("primary_cmd") or "", m.get("secondary_cmd") or "") for m in ms]),
+                    power_feature(r["my_power"], r["opp_power"]), float(r["result"] == "win")))
+    return out
+
+
+def _candidates(fk, P):
+    """Feature sets to try. fk: feature keys per fight; P: power column. -> {kind: (X, keys)}"""
+    common = sorted({k for s in fk for k in s if sum(k in t for t in fk) >= 3})   # rarer ones cannot be learned
+    group = lambda *pre: [k for k in common if k.split(":")[0] in pre]
+    cols = lambda keys: np.array([[k in s for k in keys] for s in fk], float).reshape(len(fk), len(keys))
+    groups = {"enemy commanders": group("e"), "secondaries": group("es", "mp"),
+              "enemy commanders and secondaries": group("e", "es", "mp")}
+    cands = {"power": (P, [])}
+    for label, keys in groups.items():
+        cands[label] = (cols(keys), keys)
+        cands["power and " + label] = (np.hstack([P, cols(keys)]), keys)
+    return cands
+
+
+def _loo_gain(X, Y, n_own, preds=None):
+    """Log-likelihood gain over your plain win rate, on each of YOUR fights (the first n_own rows) when it
+    is left out of training. Other rows (friends' fights) always stay in training.
+    preds: a list to receive (chance given without seeing the fight, won) per fight."""
+    ll_m = ll_c = 0.0
+    for i in range(n_own):
+        m = np.arange(len(Y)) != i
+        a, w = _fit_logistic(X[m], Y[m])
+        p = min(max(1 / (1 + np.exp(-(a + X[i] @ w))), 0.02), 0.98)
+        if preds is not None:
+            preds.append((float(p), int(Y[i])))
+        q = Y[:n_own][np.arange(n_own) != i].mean()
+        ll_m += Y[i] * np.log(p) + (1 - Y[i]) * np.log(1 - p)
+        ll_c += Y[i] * np.log(q) + (1 - Y[i]) * np.log(1 - q)
+    return ll_m - ll_c
+
+
+POOLED = " (with friends' fights)"
+
+
 def win_model(conn):
     """Which signal, if any, predicts YOUR fights. Each candidate is scored on fights it had not
-    seen (leave-one-out) and used only if clearly better than your plain win rate.
-    -> (base rate, model or None, note); model = (kind, a, weights, enemy names)"""
+    seen (leave-one-out) and used only if clearly better than your plain win rate. Every candidate
+    is tried twice: on your fights alone, and with friends' shared fights added to the training
+    (they never count toward the score: only your own fights do).
+    -> (base rate, model or None, note); model = (kind, a, weights, feature keys)"""
     bs = conn.execute("SELECT id, result, my_power, opp_power FROM battles WHERE my_side='attack' AND result IN ('win','loss')").fetchall()
+    shared = _shared_rows(conn)
     # secondaries arrive with the stats screen, after the fight is saved: they count toward the cache key
-    key = (len(bs), bs[-1]["id"] if bs else 0, conn.execute("SELECT COUNT(*) FROM marches WHERE secondary_cmd<>''").fetchone()[0])
+    key = (len(bs), bs[-1]["id"] if bs else 0, conn.execute("SELECT COUNT(*) FROM marches WHERE secondary_cmd<>''").fetchone()[0],
+           len(shared))
     if _WC.get("key") == key:
+        WIN_INFO.clear()
+        WIN_INFO.update(_WC["info"])
         return _WC["val"]
     Y = np.array([b["result"] == "win" for b in bs], float)
     base = (Y.sum() + 1) / (len(Y) + 2)
     val = (base, None, f"your average over {len(Y)} fights; nothing predicted better yet")
+    WIN_INFO.clear()
     if len(Y) >= 20 and 0 < Y.mean() < 1:
         fk = [fight_keys(conn.execute("SELECT team, primary_cmd, secondary_cmd FROM marches WHERE battle_id=?",
                                       (b["id"],)).fetchall()) for b in bs]
-        common = sorted({k for s in fk for k in s if sum(k in t for t in fk) >= 3})   # rarer ones cannot be learned
-        group = lambda *pre: [k for k in common if k.split(":")[0] in pre]
-        cols = lambda keys: np.array([[k in s for k in keys] for s in fk], float).reshape(len(Y), len(keys))
         P = np.array([[power_feature(b["my_power"], b["opp_power"])] for b in bs])
-        groups = {"enemy commanders": group("e"), "secondaries": group("es", "mp"),
-                  "enemy commanders and secondaries": group("e", "es", "mp")}
-        cands = {"power": (P, [])}
-        for label, keys in groups.items():
-            cands[label] = (cols(keys), keys)
-            cands["power and " + label] = (np.hstack([P, cols(keys)]), keys)
+        cands = {k: (X, keys, Y) for k, (X, keys) in _candidates(fk, P).items()}
+        if len(shared) >= 10:
+            fk_all = fk + [s[0] for s in shared]
+            P_all = np.vstack([P, np.array([[s[1]] for s in shared])])
+            Y_all = np.concatenate([Y, [s[2] for s in shared]])
+            src = np.r_[np.zeros(len(Y)), np.ones(len(shared))][:, None]       # friends win more or less often than you
+            for kind, (X, keys) in _candidates(fk_all, P_all).items():
+                if X.shape[1]:
+                    cands[kind + POOLED] = (np.hstack([X, src]), keys, Y_all)
         scored = {}
-        for kind, (X, _) in cands.items():
-            if X.shape[1] == 0:
-                continue
-            ll_m = ll_c = 0.0
-            for i in range(len(Y)):
-                m = np.arange(len(Y)) != i
-                a, w = _fit_logistic(X[m], Y[m])
-                p = min(max(1 / (1 + np.exp(-(a + X[i] @ w))), 0.02), 0.98)
-                q = Y[m].mean()
-                ll_m += Y[i] * np.log(p) + (1 - Y[i]) * np.log(1 - p)
-                ll_c += Y[i] * np.log(q) + (1 - Y[i]) * np.log(1 - q)
-            scored[kind] = ll_m - ll_c
+        for kind, (X, _, Yk) in cands.items():
+            if X.shape[1] - (kind.endswith(POOLED)) > 0:
+                scored[kind] = _loo_gain(X, Yk, len(Y))
         best = max(scored, key=scored.get) if scored else None
         if best and scored[best] > 0.5:               # clearly better on fights it had not seen
-            X, keys = cands[best]
-            a, w = _fit_logistic(X, Y)
-            val = (base, (best, a, w, keys), f"{best}, tested on {len(Y)} fights it had not seen")
-        WIN_INFO.update(scored=scored)
-    _WC.update(key=key, val=val)
+            X, keys, Yk = cands[best]
+            _loo_gain(X, Yk, len(Y), WIN_INFO.setdefault("loo", []))       # for the trust check on Report
+            a, w = _fit_logistic(X, Yk)
+            if best.endswith(POOLED):
+                w = w[:-1]                            # the friends' flag is 0 for your own fights
+            val = (base, (best, a, w, keys), f"{best}, tested on {len(Y)} of your fights it had not seen")
+        WIN_INFO.update(scored=scored, shared=len(shared))
+    _WC.update(key=key, val=val, info=dict(WIN_INFO))
     return val

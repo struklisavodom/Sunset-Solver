@@ -207,9 +207,24 @@ def shared_page(conn):
 <div class=stat><b>{pool['fights']}</b>fights pooled</div>
 <div class=stat><b>{f"{pool['won'] / pool['fights']:.0%}" if pool['fights'] else "-"}</b>won, everyone</div>
 </div>
+<div class=card><h3>Does it help your win chance?</h3><p>{_pooled_note(conn)}</p></div>
 <div class=card><h3>Hardest enemy commanders, everyone's fights <span class=muted>(5+ fights)</span></h3>
 <table><tr><th>Enemy commander</th><th>Fights</th><th>Won against it</th></tr>
 {rows or '<tr><td colspan=3 class=muted>not enough pooled fights yet</td></tr>'}</table></div>""")
+
+
+def _pooled_note(conn):
+    """Whether friends' fights made your win chance better (tested on your own fights only)."""
+    base, wm, _ = engine.win_model(conn)
+    n = engine.WIN_INFO.get("shared", 0)
+    if n < 10:
+        return f"Not yet: friends' fights are tried once there are 10 or more (now {n})."
+    if wm and wm[0].endswith(engine.POOLED):
+        return "Yes: with friends' fights added, your win chance predicts your own fights better, so it uses them."
+    sc = engine.WIN_INFO.get("scored", {})
+    own, pooled = max((v for k, v in sc.items() if not k.endswith(engine.POOLED)), default=0),         max((v for k, v in sc.items() if k.endswith(engine.POOLED)), default=0)
+    return (f"Not yet: tested on your own fights, your fights alone predict them better "
+            f"({own:+.1f} vs {pooled:+.1f}). Re-tested after every fight.")
 
 
 def _secondaries_note(wm, fi):
@@ -425,8 +440,10 @@ def report_page(conn):
 <table><tr><th>Commander</th><th>Best cell so far</th><th>Worst cell so far</th></tr>{form}</table>
 </div>""" if form else "")
     pairs_card = _pairs_card(conn)
+    trust_card = _trust_card(conn)
     return page("Report", f"""<h2>Where to invest</h2>
 <div class=card><ul>{tips}</ul></div>
+{trust_card}
 {form_card}
 {pairs_card}
 <div class=card><h3>What opponents field <span class=muted>({rep['meta']['lineups']} line-ups)</span></h3>
@@ -436,6 +453,22 @@ def report_page(conn):
     f"<tr><td>{esc(p)}</td><td>{k}</td></tr>" for p, k in rep['meta']['pairs']) or '<tr><td class=muted>none seen twice yet</td><td></td></tr>'}</table></div></div>
 <div class=grid><div class=card><h3>Your commanders</h3>{table(rep['mine'], 'You won')}</div>
 <div class=card><h3>Enemy commanders you faced</h3>{table(rep['enemy'], 'You won')}</div></div>""")
+
+
+def _trust_card(conn):
+    """How right the bar's win chance has been, on fights the model had not seen."""
+    engine.win_model(conn)
+    preds = engine.WIN_INFO.get("loo") or []
+    if len(preds) < 10:
+        return ""
+    rows = "".join(f"<tr><td>{esc(lab)}</td><td>{n}</td><td>{said:.0%}</td><td><b>{won:.0%}</b></td></tr>"
+                   for lab, n, said, won in engine.calibration(preds))
+    hits = sum((p >= 0.5) == bool(y) for p, y in preds)
+    wins = sum(y for _, y in preds)
+    return f"""<div class=card><h3>Can you trust the win chance? <span class=muted>(each fight judged before the model saw it)</span></h3>
+<table><tr><th>The bar said</th><th>Fights</th><th>On average</th><th>You actually won</th></tr>{rows}</table>
+<p class=muted>Picked the winner in {hits} of {len(preds)} fights; always guessing "win" would get {max(wins, len(preds) - wins)}.
+The closer the last two columns, the more the percentage can be taken literally.</p></div>"""
 
 
 def _pairs_card(conn):
@@ -586,8 +619,11 @@ def teach_page(conn):
         return page("Teach", "<p>Auto-logging packages are not installed (see Auto-log).</p>")
     lib = WATCHER.lib
     tiles = ""
+    fills = dict(conn.execute("SELECT file, COUNT(DISTINCT battle_id) FROM face_links GROUP BY file").fetchall())
     for f in lib.unknown_files():
         kind = "secondary" if f.startswith("sec_") else "primary"
+        if fills.get(f):
+            kind += f", fills {fills[f]} fight{'s' if fills[f] > 1 else ''}"
         tiles += (f'<div class=tile><img src="/portrait?f={esc(f)}"><form method=post action=/teach>'
                   f'<input type=hidden name=file value="{esc(f)}"><input list=cmds name=name size=14 placeholder="who is this?">'
                   f'<br><span class=muted>{kind}</span><br><button name=act value=save>Save</button> '
@@ -732,10 +768,12 @@ class Handler(BaseHTTPRequestHandler):
             if WATCHER and path == "/teach":
                 if g("act") == "discard":
                     WATCHER.lib.discard_unknown(g("file"))
+                    db.drop_face(conn, os.path.basename(g("file")))
                 elif g("name"):
                     db.ensure_commander(conn, g("name"))
                     conn.commit()
-                    WATCHER.lib.name_unknown(g("file"), g("name"))
+                    for f, name in WATCHER.lib.name_unknown(g("file"), g("name")) or []:
+                        db.fill_face(conn, f, name)
                 return self.send("", 303, "/teach")
             self.send(page("404", "Not found"), 404)
         finally:

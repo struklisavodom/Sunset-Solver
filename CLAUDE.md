@@ -45,6 +45,11 @@ User data, never overwrite: `rok_canyon.db`, `portraits/`, `captures/`, `gear.js
   As of 44 fights: power + enemy commanders passes; positions help ~1.9% after controlling for power.
   Secondaries (your pairings, their secondaries) are candidates in both models too; as of 43 fights they
   do not pass, so they are not used yet. Impossible secondaries (a commander twice in a line-up) are cleared.
+  As of 61 fights (Nov 16): power + enemy commanders scores +3.7 log-lik; held-out chances are well
+  calibrated (said 73% -> won 73%) but pick the winner only 40/61 vs 39 for "always win" (Report: trust card).
+- Friends' fights (`shared_fights`, own copies excluded) enter the win model only as extra TRAINING rows for
+  a twin of each candidate ("... (with friends' fights)", with a friends-flag column); the score is still
+  leave-one-out on the user's own fights. Tried once there are 10+ friends' fights.
 - **Never correct a fight from a saved JPEG**: re-reading captures is less reliable than the live
   read (compression turned 92,000 into 32,000).
 - **Wrong data is worse than none.** Unreliable reads were removed rather than guessed:
@@ -85,7 +90,9 @@ User data, never overwrite: `rok_canyon.db`, `portraits/`, `captures/`, `gear.js
 - A skill digit 4 has no template; when one appears, add it to `skill_digits.json`.
 - Challenge-list expertise over-counts: user saw 2 flagged where 1 was expertised (Nov 13). Needs a full
   1920x1080 screenshot of that list in `testshots/` to fix.
-- Your secondaries are missing for 76 marches (faces not known when the stats screen was read).
+- Your secondaries are missing for many marches (faces not known when the stats screen was read). Since
+  Nov 16 each unknown secondary face is linked to its march (`face_links`): naming it on Teach, or the library
+  recognising it later (strict thresholds), fills the march. Faces queued before Nov 16 have no links.
 - Fights 2, 11, 14, 37 and 43 are flagged in History (cleared troop counts, missing marches).
 - Defense fights: the only source is the Sunset Canyon HISTORY list (attacks and defenses mixed: time ago,
   opponent, power, VICTORY/DEFEAT, star change). Attacks match logged fights by exact opponent power.

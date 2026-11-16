@@ -223,6 +223,33 @@ finally:
     os.environ.pop("TESSERACT_CMD", None)
     vision._TESS_OK, vision.pytesseract, vision.find_tesseract, vision.OCR_PROBLEM = None, real_pt, real_find, ""
 print("OCR messages OK")
+# friends' fights: tried as extra training data, scored only on your own fights
+pw = os.path.join(tempfile.mkdtemp(), "pw.db"); c12 = db.connect(pw); sync.ensure_tables(c12)
+db.set_setting(c12, "player_id", "me")
+rng = random.Random(5)
+for k in range(24):                       # your fights: "Hard" in the enemy line-up makes a loss likely, but only 24 fights
+    hard = k % 2 == 0
+    db.save_battle(c12, "attack", "win" if rng.random() < (0.3 if hard else 0.7) else "loss", "",
+                   [{"team": "enemy", "slot": 0, "lane": "front", "primary_cmd": "Hard" if hard else "Easy"},
+                    {"team": "enemy", "slot": 1, "lane": "front", "primary_cmd": "Filler%d" % (k % 5)}],
+                   my_power=2000000, opp_power=2000000)
+for k in range(120):                      # friends saw the same pattern, more clearly and more often
+    hard = k % 2 == 0
+    c12.execute("INSERT INTO shared_fights VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (k + 1, "friend%d" % (k % 3), k, "", "sunset", "attack", "win" if rng.random() < (0.15 if hard else 0.85) else "loss",
+                 2000000, 2000000, None, json.dumps([{"team": "enemy", "primary_cmd": "Hard" if hard else "Easy"}])))
+c12.execute("INSERT INTO shared_fights VALUES (999,'me',1,'','sunset','attack','win',1,1,NULL,'[]')")   # your own copy: ignored
+c12.commit()
+base, model, note = engine.win_model(c12)
+sc = engine.WIN_INFO["scored"]
+assert engine.WIN_INFO["shared"] == 120, engine.WIN_INFO
+assert sc["enemy commanders" + engine.POOLED] > sc["enemy commanders"], sc
+assert model and engine.win_chance(c12, ["Hard"])[0] < engine.win_chance(c12, ["Easy"])[0] - 0.1, note   # weights are shrunk hard
+print("Friends' fights OK:", note)
+cal = engine.calibration([(0.2, 0), (0.3, 1), (0.6, 1), (0.6, 0), (0.9, 1)])
+assert [(l, n, round(w, 2)) for l, n, _, w in cal] == [("0% to 35%", 2, 0.5), ("50% to 65%", 2, 0.5), ("65% to 100%", 1, 1.0)], cal
+assert engine.WIN_INFO.get("loo") and len(engine.WIN_INFO["loo"]) == 24   # one held-out chance per own fight
+print("Calibration OK")
 # threat: an enemy commander that has hit hard before gets your tank opposite it
 th = os.path.join(tempfile.mkdtemp(), "th.db"); c7 = db.connect(th); priors.seed_commanders(c7)
 for _ in range(3):

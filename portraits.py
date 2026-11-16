@@ -158,6 +158,7 @@ class Library:
         return d
 
     def stash_unknown(self, img, cx, cy, s, ctx):
+        """Queue a face for the Teach page. -> its file name (a queued look-alike's, if there is one)"""
         crop, side = _crop_square(img, cx, cy, s)
         v = face_vec(crop, side / 2.0, side / 2.0, side / 1.25)
         d = self._unknown_dir()
@@ -168,14 +169,16 @@ class Library:
                 continue
             w, h = im.size
             if float(face_vec(im, w / 2.0, h / 2.0, w / 1.25) @ v) >= 0.9:
-                return False
+                return f
         h = hashlib.md5(crop.tobytes()).hexdigest()[:10]
         crop.save(os.path.join(d, f"{ctx}_{h}.png"))
-        return True
+        return f"{ctx}_{h}.png"
 
     def prune_unknown(self):
-        """Drop queued faces that the library can recognise by now."""
-        d, n = self._unknown_dir(), 0
+        """Drop queued faces that the library can recognise by now.
+        -> [(file, name)] of those recognised as surely as the stats screen requires (min_sim 0.72,
+        margin 0.12), so the marches they came from can be filled in."""
+        d, n, sure = self._unknown_dir(), 0, []
         for f in os.listdir(d):
             try:
                 im = Image.open(os.path.join(d, f)).convert("RGB")
@@ -183,9 +186,12 @@ class Library:
                 continue
             w, h = im.size
             if self.identify(im, w / 2.0, h / 2.0, w / 1.25)[0]:
+                strict = self.identify(im, w / 2.0, h / 2.0, w / 1.25, min_sim=0.72, min_margin=0.12)[0]
+                if strict:
+                    sure.append((f, strict))
                 os.remove(os.path.join(d, f))
                 n += 1
-        return n
+        return sure
 
     def unknown_files(self):
         d = self._unknown_dir()
@@ -199,8 +205,9 @@ class Library:
         os.makedirs(dst_dir, exist_ok=True)
         shutil.move(src, os.path.join(dst_dir, os.path.basename(src)))
         self.reload()
-        self.prune_unknown()      # other queued copies of the same face are no longer needed
-        return True
+        # other queued copies of the same face are no longer needed
+        # -> every queued file now known: [(file, name)], so the fights they came from can be filled in
+        return [(os.path.basename(src), name)] + self.prune_unknown()
 
     def discard_unknown(self, filename):
         p = os.path.join(self._unknown_dir(), os.path.basename(filename))
