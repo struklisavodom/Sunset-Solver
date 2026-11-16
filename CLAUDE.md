@@ -47,6 +47,9 @@ User data, never overwrite: `rok_canyon.db`, `portraits/`, `captures/`, `gear.js
   do not pass, so they are not used yet. Impossible secondaries (a commander twice in a line-up) are cleared.
   As of 61 fights (Nov 16): power + enemy commanders scores +3.7 log-lik; held-out chances are well
   calibrated (said 73% -> won 73%) but pick the winner only 40/61 vs 39 for "always win" (Report: trust card).
+- Report shows only proven numbers: "Can you trust the win chance?" (held-out chances vs actual wins,
+  `engine.calibration`) and "What moves your win chance" (`engine.levers`, read off the model in use; as of
+  Nov 16 every 2% of power ~ 7% win chance). Home has a rank chart; Data has /export.csv.
 - Friends' fights (`shared_fights`, own copies excluded) enter the win model only as extra TRAINING rows for
   a twin of each candidate ("... (with friends' fights)", with a friends-flag column); the score is still
   leave-one-out on the user's own fights. Tried once there are 10+ friends' fights.

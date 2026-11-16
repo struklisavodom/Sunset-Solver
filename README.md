@@ -61,8 +61,8 @@ Just play. The bar tells you what is happening:
 
 | Page | What it shows |
 |---|---|
-| **Home** | Your record, and what the tool has learned so far |
-| **Report** | Who does your damage, the weak link, what to upgrade, what opponents field |
+| **Home** | Your record, your rank over time, and what the tool has learned so far |
+| **Report** | How far to trust the win chance, what moves it (power, hardest enemies), who does your damage, what opponents field |
 | **History** | Every fight. Ones marked *check* need a quick look: open **edit** and fix |
 | **My commanders** | Your current team, and each commander's level, skills and gear |
 | **Shared** | Everyone's fights pooled (anonymous) |
