@@ -177,6 +177,7 @@ def home(conn):
 <div class=stat><b>{q("SELECT COUNT(*) FROM roster WHERE updated<>''")}</b>commanders read</div>
 </div>
 <div class=card><h3>Last 10 fights</h3>{form}{review}</div>
+{_rank_chart(conn)}
 <div class=card><h3>What predicts your fights <span class=muted>(re-tested after every fight)</span></h3>
 <p><b>Win chance:</b> {esc(wnote)}.</p>
 <p><b>Formation:</b> {(f"positions help ({fi['gain'] * 100:.1f}% better on unseen fights): the bar gives formation tips")
@@ -211,6 +212,27 @@ def shared_page(conn):
 <div class=card><h3>Hardest enemy commanders, everyone's fights <span class=muted>(5+ fights)</span></h3>
 <table><tr><th>Enemy commander</th><th>Fights</th><th>Won against it</th></tr>
 {rows or '<tr><td colspan=3 class=muted>not enough pooled fights yet</td></tr>'}</table></div>""")
+
+
+def _rank_chart(conn, last=40):
+    """Sunset Canyon rank after each fight (log scale, rank 1 at the top); dots green for wins, red for losses."""
+    import math
+    rows = conn.execute("SELECT id, result, rank_after FROM battles WHERE rank_after > 0 ORDER BY id DESC LIMIT ?",
+                        (last,)).fetchall()[::-1]
+    if len(rows) < 3:
+        return ""
+    W, H, pad = 900, 150, 14            # wide: about 180 px tall on a full-width card
+    lo, hi = math.log(min(r["rank_after"] for r in rows)), math.log(max(r["rank_after"] for r in rows))
+    span = (hi - lo) or 1.0
+    pts = [(pad + i * (W - 2 * pad) / (len(rows) - 1), pad + (math.log(r["rank_after"]) - lo) / span * (H - 2 * pad), r)
+           for i, r in enumerate(rows)]
+    line = " ".join(f"{x:.1f},{y:.1f}" for x, y, _ in pts)
+    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="var(--{"win" if r["result"] == "win" else "loss"})">'
+                   f'<title>#{r["id"]}: {r["result"]}, rank {r["rank_after"]}</title></circle>' for x, y, r in pts)
+    now, best = rows[-1]["rank_after"], min(r["rank_after"] for r in rows)
+    return (f'<div class=card><h3>Rank <span class=muted>now {now}, best {best} in the last {len(rows)} ranked fights</span></h3>'
+            f'<svg viewBox="0 0 {W} {H}" width="100%" role="img" aria-label="Rank after each fight">'
+            f'<polyline points="{line}" fill="none" stroke="var(--gold)" stroke-width="2" opacity=".7"/>{dots}</svg></div>')
 
 
 def _pooled_note(conn):
@@ -377,8 +399,26 @@ def data_snapshot(conn):
             "events": WATCHER.status()["events"][:8] if WATCHER else []}
 
 
+def export_csv(conn):
+    """Every fight, one row per march, for a spreadsheet (Excel opens the file directly)."""
+    import csv
+    import io
+    cols = ["fight", "date", "mode", "result", "rank_before", "rank_after", "stars", "my_power", "opp_power",
+            "side", "primary", "secondary", "column", "row", "troops", "kills", "healed", "left"]
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(cols)
+    for r in conn.execute(
+            "SELECT b.id, b.ts, b.mode, b.result, b.rank_before, b.rank_after, b.stars_delta, b.my_power, b.opp_power, "
+            "m.team, m.primary_cmd, m.secondary_cmd, CASE m.col WHEN 0 THEN 'front' WHEN 1 THEN 'back' END, "
+            "m.row + 1, m.troops, m.kills, m.healed, m.remaining "
+            "FROM battles b JOIN marches m ON m.battle_id = b.id ORDER BY b.id, m.team DESC, m.slot"):
+        w.writerow(["" if v is None else v for v in r])
+    return out.getvalue()
+
+
 def data_page(conn):
-    return page("Data", """<h2><span class=live></span>Data, live</h2>
+    return page("Data", """<h2><span class=live></span>Data, live <a href="/export.csv" style="font-size:.6em">download all fights (CSV)</a></h2>
 <div class=stats id=counts></div>
 <div class=card><h3>Latest fights</h3><table id=fights></table></div>
 <div class=grid><div class=card><h3>Commander reads</h3><table id=cmds></table></div>
@@ -664,6 +704,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/capture.jpg":
                 return self.send(WATCHER.preview if WATCHER else b"", ctype="image/jpeg")
+            if path == "/export.csv":
+                return self.send(export_csv(conn).encode("utf-8-sig"), ctype="text/csv; charset=utf-8")
             if path == "/data.json":
                 return self.send(json.dumps(data_snapshot(conn), default=str), ctype="application/json")
             if path == "/auto/status.json":

@@ -236,7 +236,7 @@ app.WATCHER = w
 app.PORT = 8799
 srv = app.ThreadingHTTPServer(("127.0.0.1", app.PORT), app.Handler)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
-for p in ["/", "/auto", "/data", "/data.json", "/history", "/history?review=1", "/teach", "/report", "/roster", "/shared", "/talents?name=Sun+Tzu",
+for p in ["/", "/auto", "/data", "/data.json", "/history", "/history?review=1", "/teach", "/report", "/roster", "/shared", "/export.csv", "/talents?name=Sun+Tzu",
           "/commanders", f"/battle?id={b['id']}", "/auto/status.json", "/capture.jpg", f"/shot?id={b['id']}"]:
     try:
         r = urllib.request.urlopen(f"http://127.0.0.1:{app.PORT}{p}", timeout=20)
