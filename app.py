@@ -480,7 +480,7 @@ def report_page(conn):
 <table><tr><th>Commander</th><th>Best cell so far</th><th>Worst cell so far</th></tr>{form}</table>
 </div>""" if form else "")
     pairs_card = _pairs_card(conn)
-    trust_card = _trust_card(conn)
+    trust_card = _trust_card(conn) + _levers_card(conn)
     return page("Report", f"""<h2>Where to invest</h2>
 <div class=card><ul>{tips}</ul></div>
 {trust_card}
@@ -493,6 +493,23 @@ def report_page(conn):
     f"<tr><td>{esc(p)}</td><td>{k}</td></tr>" for p, k in rep['meta']['pairs']) or '<tr><td class=muted>none seen twice yet</td><td></td></tr>'}</table></div></div>
 <div class=grid><div class=card><h3>Your commanders</h3>{table(rep['mine'], 'You won')}</div>
 <div class=card><h3>Enemy commanders you faced</h3>{table(rep['enemy'], 'You won')}</div></div>""")
+
+
+def _levers_card(conn):
+    """Where to improve: the proven win model's effects in plain numbers."""
+    lv = engine.levers(conn)
+    if not lv:
+        return ""
+    my = conn.execute("SELECT my_power FROM battles WHERE my_power IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+    step = f" (about {round(my[0] * 0.02, -3):,.0f} power)" if my and my[0] else ""
+    power = (f"<p><b>Power:</b> every 2%{step} the opponent has over you changes your chance by "
+             f"<b>{lv['power'] * 100:+.1f}%</b>, so the same gain on your side is worth about {-lv['power'] * 100:.1f}%.</p>"
+             if lv["power"] is not None else "")
+    worst = [t for t in lv["against"] if t[1] <= -0.01][:4]
+    best = [t for t in reversed(lv["against"]) if t[1] >= 0.01][:4]
+    fmt = lambda ts: ", ".join(f"{esc(n)} <b>{d * 100:+.0f}%</b>" for n, d in ts) or "none stand out yet"
+    return f"""<div class=card><h3>What moves your win chance <span class=muted>(from the model in use; against an even opponent you win {lv['base']:.0%})</span></h3>
+{power}<p><b>Hardest:</b> {fmt(worst)}</p><p><b>Easiest:</b> {fmt(best)}</p></div>"""
 
 
 def _trust_card(conn):

@@ -475,6 +475,26 @@ def _fit_logistic(X, Y, lam=0.3):
     return beta[0], beta[1:]
 
 
+def levers(conn):
+    """What moves the win chance, read off the model in use (None when no model passed the test).
+    -> {"power": change per 2% stronger opponent, "base": chance against an even, average opponent,
+        "against": [(feature label, change)] most negative first}"""
+    base, model, _ = win_model(conn)
+    if not model:
+        return None
+    kind, a, w, keys = model
+    sig = lambda z: float(1 / (1 + np.exp(-z)))
+    p0 = sig(a)
+    off = 1 if "power" in kind else 0
+    label = {"e": "their {}", "es": "their {} as secondary", "mp": "your {}"}
+    items = []
+    for k, wk in zip(keys, w[off:]):
+        kind_k, name = k.split(":", 1)
+        items.append((label[kind_k].format(name.replace("+", " + ")), sig(a + wk) - p0))
+    return {"base": p0, "power": sig(a + w[0]) - p0 if off else None,
+            "against": sorted(items, key=lambda t: t[1])}
+
+
 def calibration(preds, edges=(0, 0.35, 0.5, 0.65, 1.0001)):
     """How often you actually won when the model (not having seen the fight) gave a chance in each range.
     preds: [(chance, won)]. -> [(label, fights, said on average, actually won share)]"""

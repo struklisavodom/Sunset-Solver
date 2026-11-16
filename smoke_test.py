@@ -250,6 +250,11 @@ cal = engine.calibration([(0.2, 0), (0.3, 1), (0.6, 1), (0.6, 0), (0.9, 1)])
 assert [(l, n, round(w, 2)) for l, n, _, w in cal] == [("0% to 35%", 2, 0.5), ("50% to 65%", 2, 0.5), ("65% to 100%", 1, 1.0)], cal
 assert engine.WIN_INFO.get("loo") and len(engine.WIN_INFO["loo"]) == 24   # one held-out chance per own fight
 print("Calibration OK")
+lv = engine.levers(c6)                    # the power-driven log from above: a stronger opponent must cost chance
+assert lv and lv["power"] < -0.02 and 0 < lv["base"] < 1, lv
+lv12 = engine.levers(c12)                 # friends' log: "Hard" must come out as the hardest enemy
+assert lv12["against"][0][0] == "their Hard", lv12["against"][:2]
+print("Levers OK")
 # threat: an enemy commander that has hit hard before gets your tank opposite it
 th = os.path.join(tempfile.mkdtemp(), "th.db"); c7 = db.connect(th); priors.seed_commanders(c7)
 for _ in range(3):
