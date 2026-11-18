@@ -176,6 +176,7 @@ def home(conn):
 <div class=stat><b>{q("SELECT COUNT(*) FROM scouted")}</b>line-ups scouted</div>
 <div class=stat><b>{q("SELECT COUNT(*) FROM roster WHERE updated<>''")}</b>commanders read</div>
 </div>
+{_today_card(conn)}
 <div class=card><h3>Last 10 fights</h3>{form}{review}</div>
 {_rank_chart(conn)}
 <div class=card><h3>What predicts your fights <span class=muted>(re-tested after every fight)</span></h3>
@@ -212,6 +213,25 @@ def shared_page(conn):
 <div class=card><h3>Hardest enemy commanders, everyone's fights <span class=muted>(5+ fights)</span></h3>
 <table><tr><th>Enemy commander</th><th>Fights</th><th>Won against it</th></tr>
 {rows or '<tr><td colspan=3 class=muted>not enough pooled fights yet</td></tr>'}</table></div>""")
+
+
+def _today_card(conn):
+    """Today's session (local time): fights, wins and losses, rank from first to last, stars gained."""
+    rows = conn.execute("SELECT result, mode, rank_before, rank_after, stars_delta FROM battles "
+                        "WHERE date(ts, 'localtime') = date('now', 'localtime') ORDER BY id").fetchall()
+    if not rows:
+        return ""
+    w = sum(r["result"] == "win" for r in rows)
+    l = sum(r["result"] == "loss" for r in rows)
+    ranked = [r for r in rows if r["rank_before"] and r["rank_after"]]
+    rank = (f'<div class=stat><b>{ranked[0]["rank_before"]} &rarr; {ranked[-1]["rank_after"]}</b>rank today</div>'
+            if ranked else "")
+    stars = sum(r["stars_delta"] or 0 for r in rows)
+    star = f'<div class=stat><b>{stars:+d}</b>stars today</div>' if any(r["stars_delta"] is not None for r in rows) else ""
+    lost = sum(r["mode"] == "lost" for r in rows)
+    return (f'<div class=card><h3>Today <span class=muted>{len(rows)} fights'
+            + (f", {lost} in Lost Canyon" if lost else "") + '</span></h3><div class=stats>'
+            f'<div class=stat><b><span class=win>{w}</span> - <span class=loss>{l}</span></b>won - lost</div>{rank}{star}</div></div>')
 
 
 def _rank_chart(conn, last=40):
@@ -552,9 +572,28 @@ def _num(v):
 
 def history_page(conn, query=None):
     only_review = bool(query and query.get("review"))
-    where = "WHERE needs_review=1" if only_review else ""
+    vs = ((query or {}).get("vs") or [""])[0]
+    conds, args = [], []
+    if only_review:
+        conds.append("needs_review=1")
+    if vs:              # only fights against this enemy commander
+        conds.append("EXISTS (SELECT 1 FROM marches m WHERE m.battle_id=battles.id AND m.team='enemy' AND m.primary_cmd=?)")
+        args.append(vs)
+    where = ("WHERE " + " AND ".join(conds)) if conds else ""
     out = ""
-    for b in conn.execute(f"SELECT * FROM battles {where} ORDER BY id DESC LIMIT 100").fetchall():
+    picked = conn.execute(f"SELECT * FROM battles {where} ORDER BY id DESC LIMIT 100", args).fetchall()
+    enemies = conn.execute("SELECT primary_cmd, COUNT(DISTINCT battle_id) n FROM marches WHERE team='enemy' "
+                           "AND primary_cmd NOT LIKE 'Unknown%' GROUP BY 1 ORDER BY n DESC, 1").fetchall()
+    pick = (f'<form method=get action=/history style="display:inline;margin-left:14px">'
+            + ('<input type=hidden name=review value=1>' if only_review else "")
+            + f'<select name=vs onchange="this.form.submit()"><option value="">all enemy commanders</option>'
+            + "".join(f'<option value="{esc(r[0])}"{" selected" if r[0] == vs else ""}>{esc(r[0])} ({r[1]})</option>' for r in enemies)
+            + "</select></form>")
+    if vs:
+        w = sum(b["result"] == "win" for b in picked)
+        l = sum(b["result"] == "loss" for b in picked)
+        pick += f' <span class=stat-inline>against {cmd(vs)}: <b class=win>{w}</b> - <b class=loss>{l}</b></span>'
+    for b in picked:
         ms = conn.execute("SELECT * FROM marches WHERE battle_id=? ORDER BY team, slot", (b["id"],)).fetchall()
         has_stats = any(m["remaining"] is not None for m in ms)
 
@@ -591,7 +630,7 @@ def history_page(conn, query=None):
                 f"<button class=grey>delete</button></form></div>")
     title = "Battles to check" if only_review else "History"
     link = '<a href="/history">show all</a>' if only_review else '<a href="/history?review=1">only battles to check</a>'
-    return page(title, f"<h2>{title}</h2><p>{link}</p>{out or '<p>Nothing here yet.</p>'}")
+    return page(title, f"<h2>{title}</h2><p>{link}{pick}</p>{out or '<p>Nothing here yet.</p>'}")
 
 
 def battle_page(conn, query):

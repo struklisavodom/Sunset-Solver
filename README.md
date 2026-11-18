@@ -47,7 +47,7 @@ Just play. The bar tells you what is happening:
 |---|---|
 | 🟠 *Reading..., wait* | Hold on a moment |
 | 🟢 *...captured. Continue / OK to start* | Safe to click on |
-| 🟢 / 🔴 *Scanned 5/5 \| win ~62%* | An opponent you opened: green = good odds, red = bad |
+| 🟢 / 🔴 *Scanned 5/5 \| win ~62% \| before 2-1* | An opponent you opened: green = good odds, red = bad; *before* = your record against this line-up |
 | 🔵 Blue lines | Tips: what to move, what to try next time |
 | ⬆️ *Update available* | Double-click the bar, then **Update now** |
 
@@ -61,9 +61,9 @@ Just play. The bar tells you what is happening:
 
 | Page | What it shows |
 |---|---|
-| **Home** | Your record, your rank over time, and what the tool has learned so far |
+| **Home** | Today's session, your rank over time, and what the tool has learned so far |
 | **Report** | How far to trust the win chance, what moves it (power, hardest enemies), who does your damage, what opponents field |
-| **History** | Every fight. Ones marked *check* need a quick look: open **edit** and fix |
+| **History** | Every fight; filter by enemy commander to see your record against it. Ones marked *check* need a quick look: open **edit** and fix |
 | **My commanders** | Your current team, and each commander's level, skills and gear |
 | **Shared** | Everyone's fights pooled (anonymous) |
 | More → **Teach portraits** | Faces it saw without a name: type the name once |

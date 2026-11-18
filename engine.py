@@ -495,6 +495,21 @@ def levers(conn):
             "against": sorted(items, key=lambda t: t[1])}
 
 
+def record_vs(conn, enemy_names, min_shared=4):
+    """Your wins and losses against this line-up before: fights where at least min_shared of the
+    recognised enemy commanders were the same. -> (wins, losses), or None when too few are recognised."""
+    names = {n for n in enemy_names if n}
+    if len(names) < min_shared:
+        return None
+    w = l = 0
+    for b in conn.execute("SELECT id, result FROM battles WHERE my_side='attack' AND result IN ('win','loss')").fetchall():
+        theirs = {r[0] for r in conn.execute("SELECT primary_cmd FROM marches WHERE battle_id=? AND team='enemy'", (b["id"],))}
+        if len(names & theirs) >= min_shared:
+            w += b["result"] == "win"
+            l += b["result"] == "loss"
+    return w, l
+
+
 def calibration(preds, edges=(0, 0.35, 0.5, 0.65, 1.0001)):
     """How often you actually won when the model (not having seen the fight) gave a chance in each range.
     preds: [(chance, won)]. -> [(label, fights, said on average, actually won share)]"""

@@ -255,6 +255,13 @@ assert lv and lv["power"] < -0.02 and 0 < lv["base"] < 1, lv
 lv12 = engine.levers(c12)                 # friends' log: "Hard" must come out as the hardest enemy
 assert lv12["against"][0][0] == "their Hard", lv12["against"][:2]
 print("Levers OK")
+# your record against a line-up: fights sharing 4+ of its commanders
+rv = os.path.join(tempfile.mkdtemp(), "rv.db"); c14 = db.connect(rv)
+for res, five in (("win", "ABCDE"), ("loss", "ABCDF"), ("loss", "ABCXY"), ("win", "VWXYZ")):
+    db.save_battle(c14, "attack", res, "", [{"team": "enemy", "slot": i, "lane": "front", "primary_cmd": n} for i, n in enumerate(five)])
+assert engine.record_vs(c14, list("ABCDE")) == (1, 1)            # ABCXY shares only 3
+assert engine.record_vs(c14, ["A", "B", None, None, None]) is None  # too few recognised to say
+print("Record vs line-up OK")
 # a misspelt name is merged everywhere: portrait folder, scouted line-ups, roster (keeping the read data)
 import portraits  # noqa: E402
 pr = tempfile.mkdtemp()

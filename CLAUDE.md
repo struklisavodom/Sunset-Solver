@@ -76,6 +76,8 @@ User data, never overwrite: `rok_canyon.db`, `portraits/`, `captures/`, `gear.js
   so a fight goes up once its stats are in, or 30 min after saving. Shared fights are not in the models yet:
   when they are, they may only be used if they help on the user's OWN fights (leave-one-out).
 - Expertise = pale silver hex frame (main portraits only).
+- Bar adds "before W-L" (`engine.record_vs`: earlier fights sharing 4+ of the scanned enemy commanders) on the
+  challenge list, leaderboard and pre-battle. Home: Today card (local date). History: ?vs=<enemy commander>.
 - Bar on the challenge list: "Scanned n/5 | win ~x%" coloured by the chance (green >=55%, red <=45%), the
   scanned line-up strip cut from the screen underneath (not learned portraits: those show stale secondaries), and a white flash on each newly scanned opponent. Expertise and levels: stored, not shown.
 - Slow reads (challenge, pre-battle, result, stats) run on a worker thread in order (`Watcher._submit`); the bar

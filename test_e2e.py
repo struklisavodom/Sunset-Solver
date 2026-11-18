@@ -126,7 +126,7 @@ check("defeat saved", (b2["result"], b2["rank_before"], b2["rank_after"], b2["st
 check("enemy troops", [r[0] for r in conn.execute("SELECT troops FROM marches WHERE battle_id=? AND team='enemy' ORDER BY slot", (b2["id"],))],
       [100000, 85800, 95500, 84000, 79000])
 w.step(shot("challenge")); w.step(shot("challenge"))
-check("challenge hint: scanned count and win chance only", bool(re.match(r"Scanned \d/5  \|  win ~\d+%$", w.hint[0].splitlines()[0])), True)
+check("challenge hint: scanned count, win chance, record before", bool(re.match(r"Scanned \d/5  \|  win ~\d+%(  \|  before \d+-\d+)?$", w.hint[0].splitlines()[0])), True)
 check("bar shows the scanned line-up strip and counts the scan", ((w.bar_strip or b"")[1:4], w.scan_seq >= 1), (b"PNG", True))
 print("     overlay says:", w.hint[0])
 
@@ -236,7 +236,7 @@ app.WATCHER = w
 app.PORT = 8799
 srv = app.ThreadingHTTPServer(("127.0.0.1", app.PORT), app.Handler)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
-for p in ["/", "/auto", "/data", "/data.json", "/history", "/history?review=1", "/teach", "/report", "/roster", "/shared", "/export.csv", "/talents?name=Sun+Tzu",
+for p in ["/", "/auto", "/data", "/data.json", "/history", "/history?review=1", "/teach", "/report", "/roster", "/shared", "/export.csv", "/history?vs=Sun+Tzu", "/talents?name=Sun+Tzu",
           "/commanders", f"/battle?id={b['id']}", "/auto/status.json", "/capture.jpg", f"/shot?id={b['id']}"]:
     try:
         r = urllib.request.urlopen(f"http://127.0.0.1:{app.PORT}{p}", timeout=20)

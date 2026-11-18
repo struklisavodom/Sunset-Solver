@@ -23,7 +23,7 @@ import priors
 import vision
 
 PENDING_MAX_AGE = 30 * 60
-BUILD = "18 Nov, 16:00"            # shown on the bar when idle, so you can tell a restart took effect
+BUILD = "18 Nov, 18:00"            # shown on the bar when idle, so you can tell a restart took effect
 
 
 def screen_grabber(get_settings):
@@ -63,6 +63,7 @@ class Watcher:
         self.saved = 0
         self.hint = ("Not watching", "grey")   # what the overlay shows: (text, colour)
         self.chance = None                    # (probability, similar fights) for the enemy on screen
+        self.record = None                    # (wins, losses) against this line-up before, or None
         self._saved_at = 0
         self.advice = None                    # positioning tips for the line-up on screen
         self.next_time = None                 # experiment to try after a loss
@@ -226,7 +227,10 @@ class Watcher:
         return bool(self.last_battle and not self.last_battle["stats_done"])
 
     def _chance_text(self):
-        return f"  |  win ~{round(self.chance[0] * 100)}%" if self.chance else ""
+        text = f"  |  win ~{round(self.chance[0] * 100)}%" if self.chance else ""
+        if self.record and sum(self.record):           # fought this line-up (4+ of the same commanders) before
+            text += f"  |  before {self.record[0]}-{self.record[1]}"
+        return text
 
     def _set_hint(self, kind):
         """What the status bar shows: one short line per situation, plus at most one tip."""
@@ -315,6 +319,7 @@ class Watcher:
             prims = [m["name"] for m in lineup] if lineup else [r[0] for r in conn.execute(
                 "SELECT primary_cmd FROM marches WHERE team='mine' AND battle_id=(SELECT MAX(id) FROM battles)")]
             self.chance = engine.win_chance(conn, names, mine, theirs, enemy_secs, engine.last_pairs(conn, prims))
+            self.record = engine.record_vs(conn, names)
         finally:
             conn.close()
 
