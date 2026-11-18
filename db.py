@@ -281,17 +281,23 @@ def save_commander(conn, name, **fields):
     conn.commit()
 
 
-def fix_names(conn, known):
+def fix_names(conn, known=None):
     import json
+    import priors
     """Rename commanders stored with an OCR slip (e.g. 'Matilda Of Flander') to the real name,
     everywhere they appear. Only near-certain matches (90% similar) are touched."""
-    import difflib
-    key = lambda s: s.lower().replace(" ", "")
+    known = list(known) if known is not None else priors.all_names()
     for (old,) in conn.execute("SELECT name FROM commanders").fetchall():
         if old in known:
             continue
-        best = max(known, key=lambda k: difflib.SequenceMatcher(None, key(old), key(k)).ratio())
-        if difflib.SequenceMatcher(None, key(old), key(best)).ratio() < 0.9:
+        best = priors.match_name(old, known)
+        if not best:
+            if not priors.looks_like_name(old) and not conn.execute(
+                    "SELECT 1 FROM marches WHERE primary_cmd=? OR secondary_cmd=?", (old, old)).fetchone():
+                # unreadable text saved as a name (e.g. 'ir nor Are' from the commander view) and used nowhere
+                conn.execute("DELETE FROM roster WHERE name=?", (old,))
+                conn.execute("DELETE FROM pairings WHERE primary_cmd=? OR secondary_cmd=?", (old, old))
+                conn.execute("DELETE FROM commanders WHERE name=?", (old,))
             continue
         # the real name must exist before anything points at it (roster rows reference commanders)
         conn.execute("INSERT OR IGNORE INTO commanders(name, troop, role, grade, note) "
@@ -300,10 +306,16 @@ def fix_names(conn, known):
             conn.execute(f"UPDATE marches SET {col}=? WHERE {col}=?", (best, old))
         conn.execute("UPDATE pairings SET primary_cmd=? WHERE primary_cmd=?", (best, old))
         conn.execute("UPDATE OR IGNORE pairings SET secondary_cmd=? WHERE secondary_cmd=?", (best, old))
-        rows = {r["name"]: r for r in conn.execute("SELECT * FROM roster WHERE name IN (?, ?)", (best, old))}
-        if old in rows and (best not in rows or (rows[old]["updated"] or "") > (rows[best]["updated"] or "")):
-            conn.execute("DELETE FROM roster WHERE name=?", (best,))          # the misspelt row holds the newer read
+        rows = {r["name"]: dict(r) for r in conn.execute("SELECT * FROM roster WHERE name IN (?, ?)", (best, old))}
+        if old in rows and best not in rows:
             conn.execute("UPDATE roster SET name=? WHERE name=?", (best, old))
+        elif old in rows:
+            # field by field: the newer read wins only where it actually holds a value
+            a, b = rows[best], rows[old]
+            newer, older = (b, a) if (b["updated"] or "") > (a["updated"] or "") else (a, b)
+            merged = {k: (newer[k] if newer[k] not in (None, "", 0) else older[k]) for k in a if k != "name"}
+            conn.execute("UPDATE roster SET " + ", ".join(f"{k}=?" for k in merged) + " WHERE name=?",
+                         (*merged.values(), best))
         conn.execute("DELETE FROM roster WHERE name=?", (old,))
         conn.execute("UPDATE face_links SET primary_cmd=? WHERE primary_cmd=?", (best, old))
         # names inside stored line-ups (JSON): an exact quoted match only

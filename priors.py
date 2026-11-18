@@ -105,6 +105,45 @@ PRIME_BASES = {"Pelagius", "Sun Tzu", "Joan of Arc", "Boudica", "Scipio Africanu
                "Baibars", "Hermann", "Bjorn Ironside", "Lohar", "Kusunoki Masashige", "Osman I"}
 
 
+# Misreads seen in real fights that the similarity rule below is too cautious to map on its own.
+MISREADS = {"Ethelfizd": "Aethelflaed", "Athelflwzd": "Aethelflaed"}
+
+
+def all_names():
+    """Every real commander name: the known list plus the Prime versions (separate commanders)."""
+    return list(KNOWN_NAMES) + [f"{b} Prime" for b in sorted(PRIME_BASES)]
+
+
+def match_name(name, known=None):
+    """The real commander behind a (possibly misread) name, or None when unsure.
+    Exact, a recorded misread, at least 90% similar, or at least 70% similar while every other
+    name is at least 15% further away (two real names are never that close)."""
+    import difflib
+    known = list(known) if known is not None else all_names()
+    if not name:
+        return None
+    if name in known:
+        return name
+    if name in MISREADS and MISREADS[name] in known:
+        return MISREADS[name]
+    if name.endswith(" Prime"):                     # a Prime is its own commander: never fold it into the base
+        known = [k for k in known if k.endswith(" Prime")]
+    key = lambda s: "".join(ch for ch in s.lower() if ch.isalnum())
+    sc = sorted(((difflib.SequenceMatcher(None, key(name), key(k)).ratio(), k) for k in known), reverse=True)
+    if not sc:
+        return None
+    best, bn = sc[0]
+    second = sc[1][0] if len(sc) > 1 else 0.0
+    return bn if best >= 0.9 or (best >= 0.7 and best - second >= 0.15) else None
+
+
+def looks_like_name(s):
+    """A plausible commander name: 1-4 capitalised words of letters ("ir nor Are" is not)."""
+    words = (s or "").replace("-", " ").replace("'", "").split()
+    small = {"of", "the", "no", "al", "de", "el"}       # "Joan of Arc", "Minamoto no Yoshitsune", ...
+    return 1 <= len(words) <= 4 and sum(len(w) for w in words) >= 4 and words[0][:1].isupper() and         all(w.isalpha() and (w[0].isupper() or w in small) for w in words)
+
+
 def seed_commanders(conn):
     for name, (troop, role, grade) in SEED.items():
         conn.execute(

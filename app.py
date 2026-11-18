@@ -844,8 +844,8 @@ def main():
     conn = db.connect()
     priors.seed_commanders(conn)
     if not AUTO_ERR:      # before the library loads: a misspelt face folder would bring the wrong name back
-        portraits.merge_folders("portraits", priors.KNOWN_NAMES)
-    db.fix_names(conn, priors.KNOWN_NAMES)
+        portraits.merge_folders("portraits")
+    db.fix_names(conn)
     db.repair(conn)
     db.sync_roster(conn)
     conn.close()

@@ -108,7 +108,7 @@ print("Formation OK:", tip)
 db.save_battle(c4, "attack", "win", "", [{"team": "mine", "slot": 0, "lane": "front", "primary_cmd": "Joan of Arc", "secondary_cmd": "Matilda Of Flander"}])
 db.sync_roster(c4)
 db.save_commander(c4, "Matilda Of Flander", level=40, skills="5555E")         # a roster row with data, as on the real PC
-db.fix_names(c4, priors.KNOWN_NAMES)
+db.fix_names(c4)
 assert c4.execute("SELECT level, skills FROM roster WHERE name='Matilda of Flanders'").fetchone()[:] == (40, "5555E")
 assert not c4.execute("SELECT 1 FROM roster WHERE name='Matilda Of Flander'").fetchone()
 assert c4.execute("SELECT COUNT(*) FROM marches WHERE secondary_cmd='Matilda of Flanders'").fetchone()[0] == 1
@@ -260,7 +260,7 @@ import portraits  # noqa: E402
 pr = tempfile.mkdtemp()
 for d, f in (("Matilda Of Flander", "a.png"), ("Matilda of Flanders", "b.png"), ("Pelagius Prime", "c.png")):
     os.makedirs(os.path.join(pr, d)); open(os.path.join(pr, d, f), "w").close()
-assert portraits.merge_folders(pr, priors.KNOWN_NAMES) == [("Matilda Of Flander", "Matilda of Flanders")]
+assert portraits.merge_folders(pr) == [("Matilda Of Flander", "Matilda of Flanders")]
 assert sorted(os.listdir(os.path.join(pr, "Matilda of Flanders"))) == ["a.png", "b.png"] and os.path.isdir(os.path.join(pr, "Pelagius Prime"))
 mf = os.path.join(tempfile.mkdtemp(), "mf.db"); c13 = db.connect(mf); priors.seed_commanders(c13)
 db.save_battle(c13, "attack", "win", "", [{"team": "mine", "slot": 0, "lane": "front", "primary_cmd": "Joan of Arc",
@@ -268,10 +268,21 @@ db.save_battle(c13, "attack", "win", "", [{"team": "mine", "slot": 0, "lane": "f
 db.save_commander(c13, "Matilda Of Flander", level=44)      # the misspelt row holds the only read
 c13.execute("INSERT INTO scouted(mode, key, lineup) VALUES ('sunset', 'k2', ?)", (json.dumps([["Joan of Arc", "Matilda Of Flander", 50, False]]),))
 c13.commit()
-db.fix_names(c13, priors.KNOWN_NAMES)
+db.fix_names(c13)
 assert c13.execute("SELECT level FROM roster WHERE name='Matilda of Flanders'").fetchone()[0] == 44
 assert "Flander\"" not in c13.execute("SELECT lineup FROM scouted").fetchone()[0]
 assert not c13.execute("SELECT 1 FROM commanders WHERE name='Matilda Of Flander'").fetchone()
+# a misread with only a newer gear read must not wipe the real row's level and skills (Athelflwzd, Nov 18)
+db.save_commander(c13, "Aethelflaed", level=53, skills="5351")
+db.save_battle(c13, "attack", "win", "", [{"team": "mine", "slot": 0, "lane": "back", "primary_cmd": "Athelflwzd"}])
+db.save_commander(c13, "Athelflwzd", gear={"Infantry Attack": 5.0})
+c13.execute("UPDATE roster SET updated='2099-01-01' WHERE name='Athelflwzd'"); c13.commit()
+db.fix_names(c13)
+assert c13.execute("SELECT level, skills, gear FROM roster WHERE name='Aethelflaed'").fetchone()[:] == (53, "5351", '{"Infantry Attack": 5.0}')
+assert c13.execute("SELECT COUNT(*) FROM marches WHERE primary_cmd='Aethelflaed'").fetchone()[0] == 1
+# names: misreads map, Prime commanders stay their own, garbage is not a name
+assert priors.match_name("Ethelfizd") == "Aethelflaed" and priors.match_name("Ragnar Lodbrok Prime") is None
+assert priors.match_name("Pelagius Prime") == "Pelagius Prime" and not priors.looks_like_name("ir nor Are")
 print("Name merge OK")
 # threat: an enemy commander that has hit hard before gets your tank opposite it
 th = os.path.join(tempfile.mkdtemp(), "th.db"); c7 = db.connect(th); priors.seed_commanders(c7)

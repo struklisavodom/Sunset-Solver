@@ -23,7 +23,7 @@ import priors
 import vision
 
 PENDING_MAX_AGE = 30 * 60
-BUILD = "18 Nov, 12:00"            # shown on the bar when idle, so you can tell a restart took effect
+BUILD = "18 Nov, 16:00"            # shown on the bar when idle, so you can tell a restart took effect
 
 
 def screen_grabber(get_settings):
@@ -439,9 +439,11 @@ class Watcher:
             return
         for s in ("mine", "enemy"):
             for m in pre[s]:
-                if m["name"] and m["name_src"] in ("ocr", "new"):
+                # learn a face only from a plate that matched a known name: a misread "new" name would
+                # teach the library the wrong name for that face (Athelflwzd, Nov 16). New ones go to Teach.
+                if m["name"] and m["name_src"] == "ocr":
                     self.lib.add(m["name"], img, m["hex"][0], m["hex"][1], portraits.CTX_SIZE["pre"], "pre")
-                elif not m["name"]:
+                elif not m["name"] or m["name_src"] == "new":
                     self.lib.stash_unknown(img, m["hex"][0], m["hex"][1], portraits.CTX_SIZE["pre"], "pre")
         sure = self.lib.prune_unknown()
         if sure:                                     # faces learned since: fill the fights they came from

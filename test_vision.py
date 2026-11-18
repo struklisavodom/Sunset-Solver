@@ -129,6 +129,11 @@ def main():
                                     "Archer Defense": 3.0, "Archer Health": 4.0, "March Speed": 9.0,
                                     "Damage to Barbarians": 6.5, "Commander EXP Gain": 8.0, "Infantry Base Defense": 1.0}))
 
+    print("pre-battle on bright sand (Cao Cao in front row 4 was read as 35,000)")
+    pre = vision.parse_prebattle(load("prebattle_sand"))
+    check("troop counts on sand", sorted((m["col"], m["row"], m["troops"]) for m in pre["mine"]),
+          [(0, 1, 101200), (0, 2, 100000), (0, 3, 95000), (1, 1, 100000), (1, 2, 99395)])
+    check("a believable count read twice outvotes a low misread", vision._pick_count([35000] * 7 + [95000] * 5), 95000)
     print("leaderboard (Sunset Canyon main screen, a row opened)")
     for shot, levels, opp in (("leaderboard_1", [60, 60, 60, 60, 60], 2558450), ("leaderboard_2", [60, 56, 60, 60, 60], 2260670),
                               ("leaderboard_3", [60, 55, 50, 58, 60], 2134900)):

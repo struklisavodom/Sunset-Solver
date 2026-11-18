@@ -205,6 +205,22 @@ def _best_cluster(mask, gap=14, pad=2):
     return sub[max(0, rows[0] - pad): rows[-1] + 1 + pad]
 
 
+def _pick_count(reads):
+    """The troop count from all OCR reads of one plate (the vote shared by _read_count and _read_counts)."""
+    cands = Counter(c for c in reads if 1000 <= c <= 999999)
+    # a count in the normal range read at least twice outvotes implausibly low ones: on bright sand the
+    # brightness mask turned 95,000 into 35,000 while the colour mask read it right (Nov 18, front row 4)
+    if any(k >= 2 and c >= 40000 for c, k in cands.items()):
+        cands = Counter({c: k for c, k in cands.items() if c >= 40000})
+    if not cands:
+        return None
+    best, n = cands.most_common(1)[0]
+    for c, k in cands.items():      # e.g. 90,000 read three times beats 0,000 -> "30,000"/"5,000" style slips
+        if k >= 2 and len(str(c)) > len(str(best)) and str(c).endswith(str(best)[1:]):
+            best = c
+    return best
+
+
 def _read_count(*masks):
     """Troop count under a name plate: majority vote over masks and OCR settings.
     A dropped leading digit is the usual slip, so among the top answers the longer one wins."""
@@ -219,14 +235,7 @@ def _read_count(*masks):
                 t = _ocr(m, psm=psm, whitelist="0123456789,", scale=scale)
                 if _NUM.match(t) or re.fullmatch(r"\d{5,6}", t):
                     cands.append(int(t.replace(",", "")))
-    cands = Counter(c for c in cands if 1000 <= c <= 999999)
-    if not cands:
-        return None
-    best, n = cands.most_common(1)[0]
-    for c, k in cands.items():      # e.g. 90,000 read three times beats 0,000 -> "30,000"/"5,000" style slips
-        if k >= 2 and len(str(c)) > len(str(best)) and str(c).endswith(str(best)[1:]):
-            best = c
-    return best
+    return _pick_count(cands)
 
 
 def _read_counts(mask_pairs):
@@ -257,14 +266,7 @@ def _read_counts(mask_pairs):
                     if _NUM.match(t) or re.fullmatch(r"\d{5,6}", t):
                         cands.append(int(t.replace(",", "")))
                 j += 1
-            cands = Counter(c for c in cands if 1000 <= c <= 999999)
-            if not cands:
-                continue
-            best, n = cands.most_common(1)[0]
-            for c, kk in cands.items():
-                if kk >= 2 and len(str(c)) > len(str(best)) and str(c).endswith(str(best)[1:]):
-                    best = c
-            out[k] = best
+            out[k] = _pick_count(cands)
     return out
 
 
@@ -376,16 +378,20 @@ def _key(s):
 
 
 def fix_name(raw, known):
-    """Closest known commander name to OCR text. -> (name or None, score)"""
+    """Closest known commander name to OCR text. -> (name or None, score)
+    At least 80% similar, or 70% while every other name is 15% further away; recorded misreads count."""
     k = _key(raw)
     if len(k) < 3:
         return None, 0.0
-    best, bs = None, 0.0
-    for n in known:
-        sc = difflib.SequenceMatcher(None, k, _key(n)).ratio()
-        if sc > bs:
-            best, bs = n, sc
-    return (best, bs) if bs >= 0.8 else (None, bs)
+    alias = priors.MISREADS.get(raw.strip())
+    if alias:
+        return alias, 1.0
+    scores = sorted(((difflib.SequenceMatcher(None, k, _key(n)).ratio(), n) for n in set(known)), reverse=True)
+    if not scores:
+        return None, 0.0
+    bs, best = scores[0]
+    second = scores[1][0] if len(scores) > 1 else 0.0
+    return (best, bs) if bs >= 0.8 or (bs >= 0.7 and bs - second >= 0.15) else (None, bs)
 
 
 def resolve_name(raw, portrait_name, known):
@@ -881,7 +887,8 @@ def _read_name(img, view, known):
     dark = np.asarray(img.crop(NAME_BOX[view])).astype(int).max(2) < 70
     raw = _ocr(_best_cluster(dark, gap=30), psm=7)
     cleaned = re.sub(r"\s+", " ", re.sub(r"[^A-Za-z' \-\.]", "", _ascii(raw))).strip()
-    return fix_name(cleaned, known)[0] or (cleaned if len(cleaned) >= 3 else None)
+    # an unmatched read is kept only if it looks like a name: garbled text must not become a commander
+    return fix_name(cleaned, known)[0] or (cleaned if priors.looks_like_name(cleaned) else None)
 
 
 def parse_commander(img, known=()):

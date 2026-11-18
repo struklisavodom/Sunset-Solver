@@ -58,6 +58,16 @@ User data, never overwrite: `rok_canyon.db`, `portraits/`, `captures/`, `gear.js
 - **Wrong data is worse than none.** Unreliable reads were removed rather than guessed:
   skill digits and gear rarity on the main commander view, secondary-commander expertise.
 - Joan of Arc is a tank (with Matilda of Flanders as secondary). Roles drive the column rules.
+- Names (Nov 18): one matcher, `priors.match_name` (exact, `priors.MISREADS`, >=90% similar, or >=70% with
+  every other name 15% further away; a "Prime" name never maps to a non-Prime). Used at start for DB names
+  (`db.fix_names`, roster rows merged field by field) and portrait folders (`portraits.merge_folders`), and
+  live (`vision.fix_name`). Faces are learned only from plates that matched a known name; an unmatched
+  ("new") plate goes to Teach. The game writes "Æthelflæd", which is why OCR garbles her name.
+- Troop-count vote (`vision._pick_count`): a count >= 40,000 read at least twice outvotes lower reads
+  (bright sand made the brightness mask read 95,000 as 35,000; test shot `prebattle_sand`).
+- Reads batch their OCR (`_ocr_many`: one Tesseract run reads a list of images); results are identical to
+  one call per crop (checked on 600 number cells and both pre-battle shots). Pre-battle ~1.0 s, stats ~1.1 s,
+  challenge ~1.0 s. Tesseract runs with OMP_THREAD_LIMIT=1.
 - Sunset and Lost Canyon share mechanics: data is pooled, `mode` is only a label
   (Lost Canyon results show no rank or star change).
 - Equipment and talents matter only for the primary commander.
