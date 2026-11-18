@@ -12,7 +12,9 @@ import difflib
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 import unicodedata
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -119,6 +121,48 @@ def ocr_available():
     return _TESS_OK
 
 
+LF, FF = chr(10), chr(12)                        # newline; form feed = Tesseract's page break
+# Tesseract starts several threads per process; reads here already run side by side (measured 10-20% faster)
+os.environ.setdefault("OMP_THREAD_LIMIT", "1")
+
+
+def _ocr_image(mask, scale):
+    arr = np.where(mask, 0, 255).astype(np.uint8)
+    pil = Image.fromarray(arr).resize((arr.shape[1] * scale, arr.shape[0] * scale), Image.LANCZOS)
+    return ImageOps.expand(pil, border=20, fill=255)
+
+
+def _ocr_many(masks, psm=7, whitelist=None, scale=4):
+    """OCR many masks in ONE Tesseract run (it reads a list of image files): starting the program costs
+    ~0.1 s on Windows, more than reading a small crop. Same text as _ocr on each mask (checked on the
+    stats screen); falls back to one call per mask if the batch output does not line up."""
+    if not masks:
+        return []
+    if not ocr_available():
+        return [""] * len(masks)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            paths = []
+            for i, m in enumerate(masks):
+                p = os.path.join(d, f"{i}.png")
+                _ocr_image(m, scale).save(p)
+                paths.append(p)
+            lst = os.path.join(d, "list.txt")
+            with open(lst, "w", encoding="utf-8") as fh:
+                fh.write(LF.join(paths) + LF)
+            cmd = [pytesseract.pytesseract.tesseract_cmd, lst, "stdout", "--psm", str(psm)]
+            if whitelist:
+                cmd += ["-c", f"tessedit_char_whitelist={whitelist}"]
+            out = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+        pages = [p.strip() for p in out.split(FF)]
+        if len(pages) >= len(masks):
+            return pages[:len(masks)]
+    except Exception:
+        pass
+    return [_ocr(m, psm=psm, whitelist=whitelist, scale=scale) for m in masks]
+
+
 def _ocr(mask, psm=7, whitelist=None, scale=4):
     """OCR a boolean ink mask (True = text)."""
     if not ocr_available() or mask.size == 0:
@@ -185,6 +229,45 @@ def _read_count(*masks):
     return best
 
 
+def _read_counts(mask_pairs):
+    """_read_count for many plates: the same quick check and the same full vote, but every OCR
+    setting runs once for all plates (one Tesseract run each) instead of once per plate."""
+    clusters = [[_best_cluster(m) for m in masks] for masks in mask_pairs]
+    flat = [c for cs in clusters for c in cs]
+    quick = _ocr_many(flat, psm=7, whitelist="0123456789,", scale=4)
+    out, full, i = [None] * len(clusters), [], 0
+    for k, cs in enumerate(clusters):
+        q = quick[i:i + len(cs)]
+        i += len(cs)
+        if len(set(q)) == 1 and _NUM.match(q[0]) and 40000 <= int(q[0].replace(",", "")) <= 999999:
+            out[k] = int(q[0].replace(",", ""))
+        else:
+            full.append(k)
+    if full:
+        settings = [(scale, psm) for scale in (3, 4, 5) for psm in (7, 8)]
+        masks = [c for k in full for c in clusters[k]]
+        with ThreadPoolExecutor(len(settings)) as pool:
+            texts = list(pool.map(lambda st: _ocr_many(masks, psm=st[1], whitelist="0123456789,", scale=st[0]), settings))
+        j = 0
+        for k in full:
+            cands = []
+            for c in clusters[k]:                    # same order as _read_count: mask, then scale, then psm
+                for s_i in range(len(settings)):
+                    t = texts[s_i][j]
+                    if _NUM.match(t) or re.fullmatch(r"\d{5,6}", t):
+                        cands.append(int(t.replace(",", "")))
+                j += 1
+            cands = Counter(c for c in cands if 1000 <= c <= 999999)
+            if not cands:
+                continue
+            best, n = cands.most_common(1)[0]
+            for c, kk in cands.items():
+                if kk >= 2 and len(str(c)) > len(str(best)) and str(c).endswith(str(best)[1:]):
+                    best = c
+            out[k] = best
+    return out
+
+
 def read_number(img, box):
     """Read a comma-grouped number printed in white. -> (value or None, confidence 0..1).
     Candidates that do not look like a properly comma-grouped number are rejected, which
@@ -216,6 +299,57 @@ def read_number(img, box):
             return 0, 0.5
         return 0, 0.2
     return None, 0.0
+
+
+def read_numbers(img, boxes):
+    """read_number for many cells at once, with exactly its voting and stopping rules, but each round
+    of reads for all cells still open is one batched Tesseract run (two side by side: psm 7 and 8)
+    instead of one run per cell and read. -> [value or None]"""
+    n = len(boxes)
+    votes, ink, tried, digits = [Counter() for _ in range(n)], [0] * n, [0] * n, [False] * n
+    out, open_ = [None] * n, list(range(n))
+    for thr in (215, 195, 235):
+        if not open_:
+            break
+        masks = {i: _white(img, boxes[i], thr) for i in open_}
+        for i in open_:
+            ink[i] = max(ink[i], int(masks[i].sum()))
+        with ThreadPoolExecutor(2) as pool:
+            r7, r8 = pool.map(lambda psm: _ocr_many([masks[i] for i in open_], psm=psm, whitelist="0123456789,"), (7, 8))
+        still = []
+        for i, c7, c8 in zip(open_, r7, r8):
+            done = False
+            for c in (c7, c8):                       # in read_number's order: psm 7, then psm 8
+                tried[i] += 1
+                digits[i] |= len(re.sub(r"\D", "", c)) >= 2
+                if _NUM.match(c):
+                    votes[i][c] += 1
+                    if votes[i][c] == 2:
+                        out[i], done = ("v", int(c.replace(",", ""))), True
+                        break
+            if done:
+                continue
+            if tried[i] == 2 and not votes[i] and not digits[i] and ink[i] > 12:
+                continue                             # nothing readable: the lone-zero check below
+            still.append(i)
+        stopped_early = [i for i in open_ if out[i] is None and i not in still]
+        open_ = still
+        for i in stopped_early:
+            out[i] = ("z", None)                     # left the rounds early, as read_number's break
+    for i in range(n):
+        if out[i] is not None and out[i][0] == "v":
+            out[i] = out[i][1]
+            continue
+        if votes[i]:
+            v, _ = votes[i].most_common(1)[0]
+            if len(v.replace(",", "")) >= 2:
+                out[i] = int(v.replace(",", ""))
+                continue
+        if ink[i] > 12:
+            out[i] = 0                               # a lone zero either way (read_number's 0.5 or 0.2 confidence)
+        else:
+            out[i] = None
+    return out
 
 
 def read_plain_int(img, box, mask_fn=None):
@@ -274,7 +408,8 @@ def resolve_name(raw, portrait_name, known):
 
 # ------------------------------------------------------------ screen type
 def normalize(img):
-    img = img.convert("RGB")
+    if img.mode != "RGB":                            # already RGB at 1920x1080 (the usual case): no copy
+        img = img.convert("RGB")
     if img.size != CANON:
         img = img.resize(CANON, Image.LANCZOS)
     return img
@@ -452,15 +587,26 @@ def parse_prebattle(img, lib=None, known=(), boxes=None):
     boxes = boxes or label_boxes(img)
     ocr_available()                                  # set OCR up once, before the threads start
 
-    def read(job):
-        side, (x0, y0, x1, y1) = job
+    jobs = [(side, b) for side in ("mine", "enemy") for b in boxes[side]]
+    # every plate's text in a few batched Tesseract runs: names in one, troop counts in a few more
+    name_masks, count_masks = [], []
+    for side, (x0, y0, x1, y1) in jobs:
+        name_masks.append(_best_cluster(_label_ink(img, (x0 - 2, y0 - 2, x1 + 4, y1 + 2), side), gap=16))
+        # two independent masks vote: brightness (works on the dark night map) and text colour
+        cbox = (x0 - 6, y0 + 17, x0 + 100, y0 + 38)
+        count_masks.append((np.asarray(img.crop(cbox)).max(2) >= 150, _label_ink(img, cbox, side)))
+    with ThreadPoolExecutor(2) as pool:
+        names_f = pool.submit(_ocr_many, name_masks, 7)
+        counts_f = pool.submit(_read_counts, count_masks)
+        raws, counts = names_f.result(), counts_f.result()
+    texts = {job_i: (raws[job_i], counts[job_i]) for job_i in range(len(jobs))}
+
+    def read(job_i):
+        side, (x0, y0, x1, y1) = jobs[job_i]
         hx, hy = x0 - 50, y0 + 12
         col, row, dist = cell_for(side, hx, hy)
         flags = []
-        raw = _ocr(_best_cluster(_label_ink(img, (x0 - 2, y0 - 2, x1 + 4, y1 + 2), side), gap=16), psm=7)
-        # two independent masks vote: brightness (works on the dark night map) and text colour
-        cbox = (x0 - 6, y0 + 17, x0 + 100, y0 + 38)
-        troops = _read_count(np.asarray(img.crop(cbox)).max(2) >= 150, _label_ink(img, cbox, side))
+        raw, troops = texts[job_i]
         if troops is None and ocr_available():
             flags.append("troop count unreadable")
         elif troops is not None and troops < 40000:
@@ -479,9 +625,7 @@ def parse_prebattle(img, lib=None, known=(), boxes=None):
 
     out = {"mine": [], "enemy": [], "flags": [], "boxes": boxes,
            "header": read_header(img) if ocr_available() else {}}
-    jobs = [(side, b) for side in ("mine", "enemy") for b in boxes[side]]
-    with ThreadPoolExecutor(8) as pool:              # each name plate is read independently
-        for m in pool.map(read, jobs):
+    for m in map(read, range(len(jobs))):           # the OCR is done; the rest is quick
             if any(o["col"] == m["col"] and o["row"] == m["row"] for o in out[m["side"]]):
                 m["flags"].append("two marches in one cell")
             out[m["side"]].append(m)
@@ -572,9 +716,7 @@ def parse_stats(img, lib=None, my_names=None, enemy_names=None, stash=False):
                    for cx, cy in cells]
         keys = ("remaining", "healed", "kills")
         ocr_available()                              # set OCR up once, before the threads start
-        with ThreadPoolExecutor(8) as pool:          # each read is its own OCR process: run them side by side
-            nums = list(pool.map(lambda b: read_number(img, b)[0],
-                                 [(C[k] - 50, y - 12, C[k] + 50, y + 12) for y in STATS_ROWS for k in keys]))
+        nums = read_numbers(img, [(C[k] - 50, y - 12, C[k] + 50, y + 12) for y in STATS_ROWS for k in keys])
         for r, ((cx, cy), (name, sim), y) in enumerate(zip(cells, ids, STATS_ROWS)):
             row = {"name": name, "sim": round(sim, 2), "secondary": None}
             for c, key in enumerate(keys):
@@ -612,20 +754,42 @@ def find_strip_y(img, xs):
     return (by, best / len(xs)) if by is not None else (None, 0.0)
 
 
-def _read_level(img, x, y, k=1.0):
-    """Commander level printed on the bottom of a hex (k = hex size relative to 66 px).
-    Voted over a few vertical offsets."""
-    votes = []
+def _level_masks(img, x, y, k=1.0):
+    """The digit masks voted over for one hex's level: a few vertical offsets x thresholds."""
+    masks = []
     for dy in (-2, 0, 2):
         s = np.asarray(img.crop((int(x - 11 * k), int(y + dy + 20 * k), int(x + 11 * k), int(y + dy + 40 * k)))).astype(int)
         for thr in (150, 170, 190):
             mask = (s.min(2) >= thr) & ((s.max(2) - s.min(2)) <= 70)
-            if mask.sum() < 10:
-                continue
-            t = re.sub(r"\D", "", _ocr(_best_cluster(mask, gap=6), psm=8, whitelist="0123456789", scale=5))
-            if t and 1 <= int(t) <= 60:
-                votes.append(int(t))
+            if mask.sum() >= 10:
+                masks.append(_best_cluster(mask, gap=6))
+    return masks
+
+
+def _level_votes(texts):
+    votes = []
+    for t in texts:
+        t = re.sub(r"\D", "", t)
+        if t and 1 <= int(t) <= 60:
+            votes.append(int(t))
     return votes
+
+
+def _read_level(img, x, y, k=1.0):
+    """Commander level printed on the bottom of a hex (k = hex size relative to 66 px).
+    Voted over a few vertical offsets."""
+    return _level_votes([_ocr(m, psm=8, whitelist="0123456789", scale=5) for m in _level_masks(img, x, y, k)])
+
+
+def _read_levels(img, spots):
+    """_read_level for many hexes in one batched Tesseract run. spots: [(x, y, k)] -> [votes]"""
+    per = [_level_masks(img, *sp) for sp in spots]
+    texts = _ocr_many([m for ms in per for m in ms], psm=8, whitelist="0123456789", scale=5)
+    out, i = [], 0
+    for ms in per:
+        out.append(_level_votes(texts[i:i + len(ms)]))
+        i += len(ms)
+    return out
 
 
 def parse_challenge(img, lib=None, stash=False):
@@ -664,8 +828,7 @@ def parse_challenge(img, lib=None, stash=False):
                         "expert": is_expert(img, x, y, L["s"]),      # strip position: the face match centres on the face, not the frame
                         "_spots": ((hx, hy, k), (x, y, L["s"] / 66.0))})
     ocr_available()
-    with ThreadPoolExecutor(10) as pool:             # 10 level reads of ~9 OCR calls each: side by side
-        reads = list(pool.map(lambda sp: _read_level(img, *sp), [sp for m in marches for sp in m["_spots"]]))
+    reads = _read_levels(img, [sp for m in marches for sp in m["_spots"]])   # ~90 small reads, one Tesseract run
     for i, m in enumerate(marches):
         # vote over the expected spot and the spot the portrait match found
         votes = reads[2 * i] + reads[2 * i + 1]

@@ -282,6 +282,7 @@ def save_commander(conn, name, **fields):
 
 
 def fix_names(conn, known):
+    import json
     """Rename commanders stored with an OCR slip (e.g. 'Matilda Of Flander') to the real name,
     everywhere they appear. Only near-certain matches (90% similar) are touched."""
     import difflib
@@ -299,10 +300,17 @@ def fix_names(conn, known):
             conn.execute(f"UPDATE marches SET {col}=? WHERE {col}=?", (best, old))
         conn.execute("UPDATE pairings SET primary_cmd=? WHERE primary_cmd=?", (best, old))
         conn.execute("UPDATE OR IGNORE pairings SET secondary_cmd=? WHERE secondary_cmd=?", (best, old))
-        if conn.execute("SELECT 1 FROM roster WHERE name=?", (best,)).fetchone():
-            conn.execute("DELETE FROM roster WHERE name=?", (old,))
-        else:
+        rows = {r["name"]: r for r in conn.execute("SELECT * FROM roster WHERE name IN (?, ?)", (best, old))}
+        if old in rows and (best not in rows or (rows[old]["updated"] or "") > (rows[best]["updated"] or "")):
+            conn.execute("DELETE FROM roster WHERE name=?", (best,))          # the misspelt row holds the newer read
             conn.execute("UPDATE roster SET name=? WHERE name=?", (best, old))
+        conn.execute("DELETE FROM roster WHERE name=?", (old,))
+        conn.execute("UPDATE face_links SET primary_cmd=? WHERE primary_cmd=?", (best, old))
+        # names inside stored line-ups (JSON): an exact quoted match only
+        for table, col in (("scouted", "lineup"), ("shared_fights", "marches")):
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+                conn.execute(f"UPDATE {table} SET {col}=REPLACE({col}, ?, ?) WHERE {col} LIKE ?",
+                             (json.dumps(old), json.dumps(best), f"%{json.dumps(old)}%"))
         conn.execute("DELETE FROM commanders WHERE name=?", (old,))
     # Joan of Arc was seeded as a back-line support; with Matilda she is a tank (user's correction)
     if not conn.execute("SELECT 1 FROM settings WHERE key='joan_tank'").fetchone():

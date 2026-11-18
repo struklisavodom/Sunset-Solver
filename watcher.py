@@ -23,7 +23,7 @@ import priors
 import vision
 
 PENDING_MAX_AGE = 30 * 60
-BUILD = "16 Nov, 10:00"            # shown on the bar when idle, so you can tell a restart took effect
+BUILD = "18 Nov, 12:00"            # shown on the bar when idle, so you can tell a restart took effect
 
 
 def screen_grabber(get_settings):
@@ -59,7 +59,7 @@ class Watcher:
         self.pending = None          # parsed pre-battle waiting for its result
         self.last_battle = None      # {"id":.., "stats_done": bool, "mine": [...], "enemy": [...]}
         self.live_enemy = None       # line-up currently shown on the challenge list
-        self.preview = b""           # small JPEG of the last frame
+        self._frame = None           # last frame seen; the JPEG preview is made only when a page asks
         self.saved = 0
         self.hint = ("Not watching", "grey")   # what the overlay shows: (text, colour)
         self.chance = None                    # (probability, similar fights) for the enemy on screen
@@ -172,11 +172,18 @@ class Watcher:
         return img
 
     def _set_preview(self, img):
-        small = img.convert("RGB")
+        self._frame = img
+
+    @property
+    def preview(self):
+        """Small JPEG of the last frame (Auto-log page). Encoded on request: ~20 ms saved on every poll."""
+        if self._frame is None:
+            return b""
+        small = self._frame.convert("RGB")
         small.thumbnail((960, 540))
         buf = io.BytesIO()
         small.save(buf, "JPEG", quality=70)
-        self.preview = buf.getvalue()
+        return buf.getvalue()
 
     # --------------------------------------------------- one frame of work
     def step(self, img):

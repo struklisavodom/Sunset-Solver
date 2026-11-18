@@ -60,6 +60,33 @@ def face_file(root, name):
     return os.path.join(d, best[0]) if best else ""
 
 
+def merge_folders(root, known):
+    """Portrait folders saved under an OCR slip ("Matilda Of Flander") are merged into the real name's
+    folder: otherwise the library keeps recognising the face under the wrong name. -> [(old, new)]"""
+    import difflib
+    if not os.path.isdir(root):
+        return []
+    key = lambda n: n.lower().replace(" ", "")
+    real = {safe_name(k): k for k in known}
+    done = []
+    for name in sorted(os.listdir(root)):
+        src = os.path.join(root, name)
+        if name.startswith("_") or not os.path.isdir(src) or name in real:
+            continue
+        best = max(real, key=lambda k: difflib.SequenceMatcher(None, key(name), key(k)).ratio())
+        if difflib.SequenceMatcher(None, key(name), key(best)).ratio() < 0.9:
+            continue
+        dst = os.path.join(root, best)
+        os.makedirs(dst, exist_ok=True)
+        for f in os.listdir(src):
+            target = os.path.join(dst, f)
+            if not os.path.exists(target):          # same file name = same face already there
+                shutil.move(os.path.join(src, f), target)
+        shutil.rmtree(src, ignore_errors=True)
+        done.append((name, real[best]))
+    return done
+
+
 class Library:
     def __init__(self, root="portraits"):
         self.root = root

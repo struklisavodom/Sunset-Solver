@@ -255,6 +255,24 @@ assert lv and lv["power"] < -0.02 and 0 < lv["base"] < 1, lv
 lv12 = engine.levers(c12)                 # friends' log: "Hard" must come out as the hardest enemy
 assert lv12["against"][0][0] == "their Hard", lv12["against"][:2]
 print("Levers OK")
+# a misspelt name is merged everywhere: portrait folder, scouted line-ups, roster (keeping the read data)
+import portraits  # noqa: E402
+pr = tempfile.mkdtemp()
+for d, f in (("Matilda Of Flander", "a.png"), ("Matilda of Flanders", "b.png"), ("Pelagius Prime", "c.png")):
+    os.makedirs(os.path.join(pr, d)); open(os.path.join(pr, d, f), "w").close()
+assert portraits.merge_folders(pr, priors.KNOWN_NAMES) == [("Matilda Of Flander", "Matilda of Flanders")]
+assert sorted(os.listdir(os.path.join(pr, "Matilda of Flanders"))) == ["a.png", "b.png"] and os.path.isdir(os.path.join(pr, "Pelagius Prime"))
+mf = os.path.join(tempfile.mkdtemp(), "mf.db"); c13 = db.connect(mf); priors.seed_commanders(c13)
+db.save_battle(c13, "attack", "win", "", [{"team": "mine", "slot": 0, "lane": "front", "primary_cmd": "Joan of Arc",
+                                           "secondary_cmd": "Matilda Of Flander"}])
+db.save_commander(c13, "Matilda Of Flander", level=44)      # the misspelt row holds the only read
+c13.execute("INSERT INTO scouted(mode, key, lineup) VALUES ('sunset', 'k2', ?)", (json.dumps([["Joan of Arc", "Matilda Of Flander", 50, False]]),))
+c13.commit()
+db.fix_names(c13, priors.KNOWN_NAMES)
+assert c13.execute("SELECT level FROM roster WHERE name='Matilda of Flanders'").fetchone()[0] == 44
+assert "Flander\"" not in c13.execute("SELECT lineup FROM scouted").fetchone()[0]
+assert not c13.execute("SELECT 1 FROM commanders WHERE name='Matilda Of Flander'").fetchone()
+print("Name merge OK")
 # threat: an enemy commander that has hit hard before gets your tank opposite it
 th = os.path.join(tempfile.mkdtemp(), "th.db"); c7 = db.connect(th); priors.seed_commanders(c7)
 for _ in range(3):
