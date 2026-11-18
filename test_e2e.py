@@ -249,6 +249,10 @@ c2 = db.connect(); mid = c2.execute("SELECT id FROM marches WHERE battle_id=? LI
 body = f"id={b['id']}&result=win&m_{mid}_primary=Cao+Cao&m_{mid}_secondary=&m_{mid}_lane=front&m_{mid}_troops=90000".encode()
 urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{app.PORT}/battle", data=body))
 check("troop count editable in History", c2.execute("SELECT troops FROM marches WHERE id=?", (mid,)).fetchone()[0], 90000)
+r = urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:{app.PORT}/commanders", data=b"name=Lohar&troop=infantry&role=tank&grade=A",
+                                                 headers={"X-Requested-With": "fetch"}))
+check("commander saved as you pick (no reload)", (r.status, r.read(), tuple(c2.execute(
+    "SELECT troop, role, grade FROM commanders WHERE name='Lohar'").fetchone())), (200, b"ok", ("infantry", "tank", "A")))
 c2.close()
 srv.shutdown()
 

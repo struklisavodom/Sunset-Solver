@@ -87,6 +87,16 @@ User data, never overwrite: `rok_canyon.db`, `portraits/`, `captures/`, `gear.js
   column of cyan CHALLENGE buttons, since REFRESH is grey while it cools down. Polls every 0.5 s. Each OCR call is a Tesseract process (~0.12 s):
   run independent reads side by side.
 
+## Web pages (look, Nov 18)
+
+- Keep them quiet: no explanatory paragraphs; a short `<span class=sub>` next to a heading at most. Numbers in
+  `td.n` (right-aligned, tabular). Hide a column that would be all "-". Stat tiles: `<b>` + `<span class=l>`.
+- History: one `<details class=fight>` row per fight (fixed columns), details on click. Commanders: selects
+  save on change (POST with `X-Requested-With: fetch` returns "ok"). Report order: what moves the chance,
+  tips, your commanders + pairings, cells, opponents, trust card last.
+- Check pages with headless Edge (`EdgeCore/<ver>/msedge.exe --headless=new --screenshot`): the in-app
+  browser cannot screenshot while the app window is hidden.
+
 ## Where each fact comes from
 
 - Pre-battle: both line-ups, grid cells (2 columns x 4 rows; column 0 = front), troop counts, powers.

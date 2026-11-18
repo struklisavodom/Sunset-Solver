@@ -105,6 +105,50 @@ border:1px solid var(--gold);border-radius:8px;padding:10px 12px;box-shadow:0 8p
 .pop div{display:flex;justify-content:space-between;gap:10px;padding:2px 0}.pop div span:first-child{color:var(--muted)}
 pre{white-space:pre-wrap;background:var(--bg);padding:10px;border-radius:6px;overflow:auto}
 a{color:var(--tip)}
+/* sleeker defaults (Nov 18): tighter, quieter, numbers line up */
+body{font-size:14.5px;line-height:1.45}
+main{padding:20px 24px 40px;max-width:1180px}
+h2{font-size:1.3em;margin:4px 0 14px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h2 .sub{font-size:.62em;font-weight:600;color:var(--muted)}
+h3{font-size:.76em;text-transform:uppercase;letter-spacing:.09em;margin:0 0 12px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+h3 .muted{text-transform:none;letter-spacing:0;font-weight:500;font-size:1.15em}
+.card{border-radius:12px;padding:16px 18px;margin:14px 0}
+.card p:first-of-type{margin-top:0}.card p:last-child{margin-bottom:0}
+table{margin:4px 0 0}
+th{font-size:.72em;letter-spacing:.06em}
+td,th{padding:7px 10px}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+button{padding:6px 13px;font-size:.9em;border-radius:7px}
+.stats{gap:12px}
+.stat{padding:12px 16px;min-width:130px;border-radius:12px}
+.stat b{font-size:1.55em;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat span.l{display:block;color:var(--muted);font-size:.72em;text-transform:uppercase;letter-spacing:.07em;margin-top:2px}
+.card .stat{background:var(--panel2);border-color:transparent}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.78em;font-weight:700;background:var(--panel2);color:var(--muted)}
+.pill.warn{background:rgba(255,179,71,.14);color:var(--warn);text-decoration:none}
+.spacer{flex:1}
+dl.facts{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0}
+dl.facts dt{color:var(--muted)}dl.facts dd{margin:0}
+details.fight{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:8px 0}
+details.fight[open]{border-color:#3a4350}
+details.fight summary{list-style:none;cursor:pointer;display:grid;align-items:center;gap:14px;padding:10px 16px;
+grid-template-columns:62px 92px minmax(120px,1fr) 142px 18px 142px 40px 56px}
+details.fight summary::-webkit-details-marker{display:none}
+details.fight summary:hover{background:rgba(255,255,255,.02)}
+details.fight .when{font-variant-numeric:tabular-nums;font-size:.9em;line-height:1.25}
+details.fight .opp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+details.fight .faces{display:flex;gap:2px}
+details.fight > .grid,details.fight > p,details.fight > .actions{padding:0 16px}
+details.fight > .grid{grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:20px}
+details.fight .actions{display:flex;gap:8px;align-items:center;padding-bottom:12px}
+details.fight .actions .muted{margin-right:auto}
+table.compact td{padding:5px 8px}table.compact .sec{margin:2px 0 0 32px;color:var(--muted);font-size:.85em}
+table.compact .sec .cmd{gap:6px}
+tr.dim td{opacity:.55}td.gear{font-size:.88em;color:#c9ced6}
+.cell{min-height:84px}.cell.empty{min-height:56px}
+td.saved{font-size:.82em;font-weight:700;width:70px}
+ul.tips{margin:0;padding-left:18px}ul.tips li{margin:5px 0;color:var(--tip)}
 """
 
 
@@ -165,27 +209,23 @@ def home(conn):
     base, wm, wnote = engine.win_model(conn)
     engine.formation_model(conn)
     fi = engine.FORMATION_INFO
-    review = f'<p><a href="/history?review=1" class=warn>{rv} fight(s) to check</a></p>' if rv else ""
     up = updater.STATUS
     update = (f"""<div class=card><h3>Update available <span class=muted>(version {up['remote']}, you have {up['local']})</span></h3>
 <form method=post action=/update><button>Update now</button></form></div>""" if up["available"] else "")
-    return page("Home", f"""<h2>Sunset Canyon helper</h2>{update}
+    stat = lambda big, label: f"<div class=stat><b>{big}</b><span class=l>{label}</span></div>"
+    today = _today_stats(conn)
+    positions = (f"used, {fi['gain'] * 100:.1f}% better on unseen fights"
+                 if fi.get("gain", 0) >= 0.005 and fi.get("tau", 0) > 0.001 and fi.get("uses", "positions").startswith("positions")
+                 else "no measurable effect yet (guide rules apply)")
+    return page("Home", f"""{update}
 <div class=stats>
-<div class=stat><b>{nb}</b>fights logged</div>
-<div class=stat><b>{f"{100 * w / nb:.0f}%" if nb else "-"}</b>won</div>
-<div class=stat><b>{q("SELECT COUNT(*) FROM scouted")}</b>line-ups scouted</div>
-<div class=stat><b>{q("SELECT COUNT(*) FROM roster WHERE updated<>''")}</b>commanders read</div>
+{stat(f'<span class=win>{w}</span> - <span class=loss>{nb - w}</span>', f"all fights, {100 * w / nb:.0f}% won" if nb else "all fights")}
+{today}
 </div>
-{_today_card(conn)}
-<div class=card><h3>Last 10 fights</h3>{form}{review}</div>
-{_rank_chart(conn)}
-<div class=card><h3>What predicts your fights <span class=muted>(re-tested after every fight)</span></h3>
-<p><b>Win chance:</b> {esc(wnote)}.</p>
-<p><b>Formation:</b> {(f"positions help ({fi['gain'] * 100:.1f}% better on unseen fights): the bar gives formation tips")
-                      if fi.get("gain", 0) >= 0.005 and fi.get("tau", 0) > 0.001 and fi.get("uses", "positions").startswith("positions") else
-                      "no measurable effect yet: the bar uses the guide rules"}.</p>
-<p><b>Secondaries:</b> {esc(_secondaries_note(wm, fi))}.</p>
-</div>""")
+{_rank_chart(conn, form=form, review=rv)}
+<div class=card><h3>What predicts your fights <span class=muted>re-tested after every fight</span></h3>
+<dl class=facts><dt>Win chance</dt><dd>{esc(wnote)}</dd><dt>Positions</dt><dd>{esc(positions)}</dd>
+<dt>Secondaries</dt><dd>{esc(_secondaries_note(wm, fi))}</dd></dl></div>""")
 
 
 def shared_page(conn):
@@ -215,6 +255,23 @@ def shared_page(conn):
 {rows or '<tr><td colspan=3 class=muted>not enough pooled fights yet</td></tr>'}</table></div>""")
 
 
+def _today_stats(conn):
+    """Today's session as stat tiles (local date): won-lost, rank from -> to, stars."""
+    rows = conn.execute("SELECT result, rank_before, rank_after, stars_delta FROM battles "
+                        "WHERE date(ts, 'localtime') = date('now', 'localtime') ORDER BY id").fetchall()
+    if not rows:
+        return ""
+    stat = lambda big, label: f"<div class=stat><b>{big}</b><span class=l>{label}</span></div>"
+    w = sum(r["result"] == "win" for r in rows)
+    out = stat(f'<span class=win>{w}</span> - <span class=loss>{len(rows) - w}</span>', "today")
+    ranked = [r for r in rows if r["rank_before"] and r["rank_after"]]
+    if ranked:
+        out += stat(f'{ranked[-1]["rank_after"]}', f'rank, {ranked[0]["rank_before"]} this morning')
+    if any(r["stars_delta"] is not None for r in rows):
+        out += stat(f'{sum(r["stars_delta"] or 0 for r in rows):+d}', "stars today")
+    return out
+
+
 def _today_card(conn):
     """Today's session (local time): fights, wins and losses, rank from first to last, stars gained."""
     rows = conn.execute("SELECT result, mode, rank_before, rank_after, stars_delta FROM battles "
@@ -234,13 +291,14 @@ def _today_card(conn):
             f'<div class=stat><b><span class=win>{w}</span> - <span class=loss>{l}</span></b>won - lost</div>{rank}{star}</div></div>')
 
 
-def _rank_chart(conn, last=40):
+def _rank_chart(conn, last=40, form="", review=0):
     """Sunset Canyon rank after each fight (log scale, rank 1 at the top); dots green for wins, red for losses."""
     import math
     rows = conn.execute("SELECT id, result, rank_after FROM battles WHERE rank_after > 0 ORDER BY id DESC LIMIT ?",
                         (last,)).fetchall()[::-1]
-    if len(rows) < 3:
-        return ""
+    side = form + (f' <a class="pill warn" href="/history?review=1">{review} to check</a>' if review else "")
+    if len(rows) < 3:                  # no rank yet (new player, Lost Canyon only): still show the recent results
+        return f'<div class=card><h3>Last fights<span class=spacer></span>{side}</h3></div>' if side else ""
     W, H, pad = 900, 150, 14            # wide: about 180 px tall on a full-width card
     lo, hi = math.log(min(r["rank_after"] for r in rows)), math.log(max(r["rank_after"] for r in rows))
     span = (hi - lo) or 1.0
@@ -250,7 +308,8 @@ def _rank_chart(conn, last=40):
     dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="var(--{"win" if r["result"] == "win" else "loss"})">'
                    f'<title>#{r["id"]}: {r["result"]}, rank {r["rank_after"]}</title></circle>' for x, y, r in pts)
     now, best = rows[-1]["rank_after"], min(r["rank_after"] for r in rows)
-    return (f'<div class=card><h3>Rank <span class=muted>now {now}, best {best} in the last {len(rows)} ranked fights</span></h3>'
+    return (f'<div class=card><h3>Rank <span class=muted>now {now}, best {best} in the last {len(rows)} ranked fights</span>'
+            f'<span class=spacer></span>{side}</h3>'
             f'<svg viewBox="0 0 {W} {H}" width="100%" role="img" aria-label="Rank after each fight">'
             f'<polyline points="{line}" fill="none" stroke="var(--gold)" stroke-width="2" opacity=".7"/>{dots}</svg></div>')
 
@@ -280,21 +339,34 @@ def _secondaries_note(wm, fi):
 
 def commanders_page(conn):
     rows = conn.execute("SELECT * FROM commanders ORDER BY name").fetchall()
-    body = ""
-    for r in rows:
-        body += (
-            f'<tr><form method=post action=/commanders><td><input type=hidden name=name value="{esc(r["name"])}">{esc(r["name"])}</td>'
-            f'<td><select name=troop>{options(TROOPS, r["troop"])}</select></td>'
-            f'<td><select name=role>{options(ROLES, r["role"])}</select></td>'
-            f'<td><select name=grade>{options(GRADES, r["grade"])}</select></td>'
-            f'<td><button>save</button></td></form></tr>'
-        )
-    return page("Commanders", f"""<h2>Commanders</h2>
-<p class=muted>Role decides the column rules: tanks front, back-line behind.</p>
-<form method=post action=/commanders class=card><input name=name placeholder="new commander" required>
+    mine = {r[0] for r in conn.execute("SELECT DISTINCT primary_cmd FROM marches WHERE team='mine' "
+                                       "UNION SELECT DISTINCT secondary_cmd FROM marches WHERE team='mine'")}
+    row = lambda r: (f'<tr data-name="{esc(r["name"])}"><td>{cmd(r["name"])}</td>'
+                     f'<td><select name=troop>{options(TROOPS, r["troop"])}</select></td>'
+                     f'<td><select name=role>{options(ROLES, r["role"])}</select></td>'
+                     f'<td><select name=grade>{options(GRADES, r["grade"])}</select></td><td class=saved></td></tr>')
+    head = "<tr><th>Commander</th><th>Troop</th><th>Role</th><th>Canyon grade</th><th></th></tr>"
+    yours = "".join(row(r) for r in rows if r["name"] in mine)
+    others = "".join(row(r) for r in rows if r["name"] not in mine)
+    return page("Commanders", f"""<h2>Commanders <span class=sub>role decides the column tips: tanks front, back line behind.
+Changes save as you pick them.</span></h2>
+<div class=card><h3>Yours</h3><table class=cmds>{head}{yours or '<tr><td class=muted>none fielded yet</td></tr>'}</table></div>
+<div class=card><h3>Everyone else</h3><table class=cmds>{head}{others}</table></div>
+<form method=post action=/commanders class=card><h3>Add a commander</h3><input name=name placeholder="name" required>
 <select name=troop>{options(TROOPS)}</select><select name=role>{options(ROLES)}</select>
-<select name=grade>{options(GRADES)}</select><button>Add</button></form>
-<table><tr><th>Name</th><th>Troop</th><th>Role</th><th>Canyon grade</th><th></th></tr>{body}</table>""")
+<select name=grade>{options(GRADES)}</select> <button>Add</button></form>
+<script>
+document.querySelectorAll('table.cmds select').forEach(sel => sel.addEventListener('change', async () => {{
+  const tr = sel.closest('tr'), body = new URLSearchParams({{name: tr.dataset.name}});
+  tr.querySelectorAll('select').forEach(s => body.append(s.name, s.value));
+  const out = tr.querySelector('.saved');
+  try {{
+    const r = await fetch('/commanders', {{method: 'POST', body, headers: {{'X-Requested-With': 'fetch'}}}});
+    out.textContent = r.ok ? 'saved' : 'not saved'; out.className = 'saved ' + (r.ok ? 'win' : 'loss');
+  }} catch (e) {{ out.textContent = 'not saved'; out.className = 'saved loss'; }}
+  setTimeout(() => out.textContent = '', 1500);
+}}));
+</script>""")
 
 
 def _talent_file(name):
@@ -366,28 +438,38 @@ def team_grid(conn):
 
 def roster_page(conn):
     rows = conn.execute("SELECT * FROM roster ORDER BY (updated='' OR updated IS NULL), level DESC, name").fetchall()
-    body = ""
+    body, unread = "", 0
     for r in rows:
         try:
             gear = json.loads(r["gear"]) if (r["gear"] or "").startswith("{") else None
         except ValueError:
             gear = None
         if not r["updated"]:
-            body += f"<tr><td>{cmd(r['name'])}</td><td colspan=7 class=muted>not read yet (key P in the game)</td></tr>"
+            unread += 1
+            body += f"<tr class=dim><td>{cmd(r['name'])}</td><td colspan=7 class=muted>not read yet</td></tr>"
             continue
         stats = {k: v for k, v in (gear or {}).items() if isinstance(v, (int, float))}      # every bonus the popup listed
-        gear_txt = ", ".join(f"{esc(k)} +{v:g}" + ("" if "Base" in k else "%") for k, v in stats.items()) or \
-            '<span class=muted>open the gear view and its "?" popup</span>'
+        fmt = lambda k, v: f"{k} +{v:g}" + ("" if "Base" in k else "%")
+        top = sorted(stats.items(), key=lambda kv: -kv[1])
+        gear_txt = (f'<span title="{esc(", ".join(fmt(k, v) for k, v in top))}">'
+                    + esc(", ".join(fmt(k, v) for k, v in top[:3]))
+                    + (f" <span class=muted>+{len(top) - 3} more</span>" if len(top) > 3 else "") + "</span>"
+                    ) if top else "<span class=muted>-</span>"
         skills = (r["skills"] or "").replace("E", "")
-        tal_link = f'<a href="/talents?name={esc(r["name"])}">picture</a>' if os.path.isfile(_talent_file(r["name"])) else "-"
-        body += (f"<tr><td>{cmd(r['name'])}</td><td>{r['level'] or '-'}</td><td>{r['stars'] or '-'}</td>"
-                 f"<td>{' '.join(skills) or '<span class=muted>open SKILLS</span>'}{' expertised' if 'E' in (r['skills'] or '') else ''}</td>"
-                 f"<td>{_num(r['power'])}</td><td>{gear_txt}</td>"
-                 f"<td>{tal_link}</td><td class=muted>{esc(r['updated'])}</td></tr>")
-    return page("My commanders", f"""<h2>My commanders</h2>
+        expert = ' <span class=pill title="expertised">E</span>' if "E" in (r["skills"] or "") else ""
+        tal_link = (f'<a href="/talents?name={esc(r["name"])}">view</a>' if os.path.isfile(_talent_file(r["name"]))
+                    else "<span class=muted>-</span>")
+        body += (f"<tr><td>{cmd(r['name'])}</td><td class=n>{r['level'] or '-'}</td><td class=n>{r['stars'] or '-'}</td>"
+                 f"<td class=n>{' '.join(skills) or '-'}{expert}</td>"
+                 f"<td class=n>{_num(r['power'])}</td><td class=gear>{gear_txt}</td>"
+                 f"<td>{tal_link}</td><td class='n muted'>{esc((r['updated'] or '')[5:10])}</td></tr>")
+    hint = (f' <span class=sub>{unread} not read yet: open them in the game (key P), then SKILLS and the gear "?"</span>'
+            if unread else "")
+    return page("My commanders", f"""<h2>My commanders{hint}</h2>
 {team_grid(conn)}
-<table><tr><th>Commander</th><th>Level</th><th>Stars</th><th>Skills</th><th>Power</th><th>Gear</th><th>Talents</th>
-<th>Last read</th></tr>{body or '<tr><td colspan=8>Nobody yet.</td></tr>'}</table>""")
+<div class=card><table><tr><th>Commander</th><th class=n>Level</th><th class=n>Stars</th><th class=n>Skills</th>
+<th class=n>Power</th><th>Gear <span class=muted>top 3, hover for all</span></th><th>Talents</th><th class=n>Read</th></tr>
+{body or '<tr><td colspan=8>Nobody yet.</td></tr>'}</table></div>""")
 
 
 def data_snapshot(conn):
@@ -479,13 +561,15 @@ def report_page(conn):
     pct = lambda v: f"{v:.0%}" if v is not None else "-"
     mult = lambda v: f"{v:.2f}x" if v is not None else "-"
 
-    def table(rows, won_label):
-        gear = lambda d: d.get("gear_txt", "-")
-        body = "".join(f"<tr><td>{cmd(d['name'])}</td><td>{d['fights']}</td><td>{d['won']}</td>"
-                       f"<td>{mult(d['dmg'])}</td><td>{pct(d['alive'])}</td><td>{gear(d)}</td></tr>" for d in rows)
-        return (f"<table><tr><th>Commander</th><th>Fights</th><th>{won_label}</th><th title='kills / own troops'>Damage</th>"
-                f"<th title='share of troops still standing'>Troops left</th><th>Gear</th></tr>{body}</table>")
-    tips = "".join(f"<li class=tip-item>{esc(t)}</li>" for t in rep["tips"])
+    def table(rows, gear=True):
+        rows = [d for d in rows if d["fights"] >= 2] or rows        # one-off sightings only add noise
+        body = "".join(f"<tr><td>{cmd(d['name'])}</td><td class=n>{d['fights']}</td><td class=n>{d['won'] / d['fights']:.0%}</td>"
+                       f"<td class=n>{mult(d['dmg'])}</td><td class=n>{pct(d['alive'])}</td>"
+                       + (f"<td class=gear>{d.get('gear_txt', '-')}</td>" if gear else "") + "</tr>" for d in rows)
+        return (f"<table><tr><th>Commander</th><th class=n>Fights</th><th class=n>You won</th>"
+                f"<th class=n title='kills / own troops'>Damage</th><th class=n title='share of troops still standing'>Left</th>"
+                + ("<th>Gear</th>" if gear else "") + f"</tr>{body}</table>")
+    tips = "".join(f"<li>{esc(t)}</li>" for t in rep["tips"])
     model = engine.formation_model(conn)
     base, wm, wnote = engine.win_model(conn)
     form = ""
@@ -495,24 +579,21 @@ def report_page(conn):
             continue
         fmt = lambda t: f"{t[0]} ({t[1] * 100:+.1f}, {t[2]} fights)"
         form += f"<tr><td>{cmd(name)}</td><td>{fmt(cells[0])}</td><td>{fmt(cells[-1])}</td></tr>"
-    form_card = (f"""<div class=card><h3>Formation learned from your fights</h3>
-<p class=muted>Points a commander adds in a cell, on a 0 to 100 fight score.</p>
-<table><tr><th>Commander</th><th>Best cell so far</th><th>Worst cell so far</th></tr>{form}</table>
+    form_card = (f"""<div class=card><h3>Best and worst cells <span class=muted>points added on a 0 to 100 fight score</span></h3>
+<table><tr><th>Commander</th><th>Best so far</th><th>Worst so far</th></tr>{form}</table>
 </div>""" if form else "")
-    pairs_card = _pairs_card(conn)
-    trust_card = _trust_card(conn) + _levers_card(conn)
-    return page("Report", f"""<h2>Where to invest</h2>
-<div class=card><ul>{tips}</ul></div>
-{trust_card}
+    return page("Report", f"""<h2>Report</h2>
+{_levers_card(conn)}
+<div class=card><h3>Tips</h3><ul class=tips>{tips}</ul></div>
+<div class=grid><div class=card><h3>Your commanders</h3>{table(rep['mine'])}</div>{_pairs_card(conn)}</div>
 {form_card}
-{pairs_card}
-<div class=card><h3>What opponents field <span class=muted>({rep['meta']['lineups']} line-ups)</span></h3>
-<div class=grid><table><tr><th>Commander</th><th>Line-ups</th><th>Share</th></tr>{''.join(
-    f"<tr><td>{cmd(c)}</td><td>{k}</td><td>{share:.0%}</td></tr>" for c, k, share in rep['meta']['commanders'])}</table>
-<table><tr><th>Common pairing</th><th>Line-ups</th></tr>{''.join(
-    f"<tr><td>{esc(p)}</td><td>{k}</td></tr>" for p, k in rep['meta']['pairs']) or '<tr><td class=muted>none seen twice yet</td><td></td></tr>'}</table></div></div>
-<div class=grid><div class=card><h3>Your commanders</h3>{table(rep['mine'], 'You won')}</div>
-<div class=card><h3>Enemy commanders you faced</h3>{table(rep['enemy'], 'You won')}</div></div>""")
+<div class=card><h3>What opponents field <span class=muted>{rep['meta']['lineups']} line-ups</span></h3>
+<div class=grid><table><tr><th>Commander</th><th class=n>Line-ups</th><th class=n>Share</th></tr>{''.join(
+    f"<tr><td>{cmd(c)}</td><td class=n>{k}</td><td class=n>{share:.0%}</td></tr>" for c, k, share in rep['meta']['commanders'])}</table>
+<table><tr><th>Common pairing</th><th class=n>Line-ups</th></tr>{''.join(
+    f"<tr><td>{esc(p)}</td><td class=n>{k}</td></tr>" for p, k in rep['meta']['pairs']) or '<tr><td class=muted>none seen twice yet</td><td></td></tr>'}</table></div></div>
+<div class=card><h3>Enemy commanders you faced</h3>{table(rep['enemy'], gear=False)}</div>
+{_trust_card(conn)}""")
 
 
 def _levers_card(conn):
@@ -557,12 +638,12 @@ def _pairs_card(conn):
         "WHERE m.team='mine' AND m.secondary_cmd<>'' GROUP BY 1, 2 ORDER BY 1, 3 DESC").fetchall()
     missing = conn.execute("SELECT COUNT(*) FROM marches WHERE team='mine' AND secondary_cmd=''").fetchone()[0]
     body = "".join(
-        f"<tr><td>{cmd(r['p'])}</td><td>{cmd(r['s'])}</td><td>{r['n']}</td><td>{r['w']}</td>"
-        f"<td>{f'{r[4]:.2f}x' if r[4] is not None else '-'}</td>"
-        f"<td>{f'{eff[(r[0], r[1])][0] * 100:+.1f}' if (r[0], r[1]) in eff else '-'}</td></tr>" for r in rows)
-    return f"""<div class=card><h3>Your pairings</h3>
-<p class=muted>{missing} of your marches have no secondary recorded. Effect fills in once pairings are proven.</p>
-<table><tr><th>Primary</th><th>Secondary</th><th>Fights</th><th>You won</th><th>Damage</th><th>Effect</th></tr>
+        f"<tr><td>{cmd(r['p'])}</td><td>{cmd(r['s'])}</td><td class=n>{r['n']}</td><td class=n>{r['w'] / r['n']:.0%}</td>"
+        f"<td class=n>{f'{r[4]:.2f}x' if r[4] is not None else '-'}</td>"
+        + (f"<td class=n>{f'{eff[(r[0], r[1])][0] * 100:+.1f}' if (r[0], r[1]) in eff else '-'}</td>" if eff else "")
+        + "</tr>" for r in rows)
+    return f"""<div class=card><h3>Your pairings <span class=muted>{missing} marches have no secondary recorded</span></h3>
+<table><tr><th>Primary</th><th>Secondary</th><th class=n>Fights</th><th class=n>Won</th><th class=n>Damage</th>{"<th class=n>Effect</th>" if eff else ""}</tr>
 {body or '<tr><td colspan=6 class=muted>none recorded yet</td></tr>'}</table></div>"""
 
 
@@ -584,7 +665,7 @@ def history_page(conn, query=None):
     picked = conn.execute(f"SELECT * FROM battles {where} ORDER BY id DESC LIMIT 100", args).fetchall()
     enemies = conn.execute("SELECT primary_cmd, COUNT(DISTINCT battle_id) n FROM marches WHERE team='enemy' "
                            "AND primary_cmd NOT LIKE 'Unknown%' GROUP BY 1 ORDER BY n DESC, 1").fetchall()
-    pick = (f'<form method=get action=/history style="display:inline;margin-left:14px">'
+    pick = (f'<form method=get action=/history style="display:inline">'
             + ('<input type=hidden name=review value=1>' if only_review else "")
             + f'<select name=vs onchange="this.form.submit()"><option value="">all enemy commanders</option>'
             + "".join(f'<option value="{esc(r[0])}"{" selected" if r[0] == vs else ""}>{esc(r[0])} ({r[1]})</option>' for r in enemies)
@@ -592,9 +673,11 @@ def history_page(conn, query=None):
     if vs:
         w = sum(b["result"] == "win" for b in picked)
         l = sum(b["result"] == "loss" for b in picked)
-        pick += f' <span class=stat-inline>against {cmd(vs)}: <b class=win>{w}</b> - <b class=loss>{l}</b></span>'
+        pick += f' <span class=sub>against {esc(vs)}: <b class=win>{w}</b> - <b class=loss>{l}</b></span>'
+    local = dict(conn.execute(f"SELECT id, strftime('%m-%d %H:%M', ts, 'localtime') FROM battles {where} "
+                              "ORDER BY id DESC LIMIT 100", args).fetchall())
     for b in picked:
-        ms = conn.execute("SELECT * FROM marches WHERE battle_id=? ORDER BY team, slot", (b["id"],)).fetchall()
+        ms = conn.execute("SELECT * FROM marches WHERE battle_id=? ORDER BY team, row, col", (b["id"],)).fetchall()
         has_stats = any(m["remaining"] is not None for m in ms)
 
         def table(team):
@@ -602,35 +685,34 @@ def history_page(conn, query=None):
             for m in ms:
                 if m["team"] != team:
                     continue
-                pos = f"{m['lane']}" + (f", row {m['row'] + 1}" if m["row"] is not None else "")
-                rows += (f"<tr><td>{cmd(m['primary_cmd'])}"
-                         + (f" <span class=muted>+</span> {cmd(m['secondary_cmd'], 22)}" if m["secondary_cmd"] else "") + "</td>"
-                         f"<td>{esc(pos)}</td><td>{_num(m['troops'])}</td>"
-                         + (f"<td>{_num(m['remaining'])}</td><td>{_num(m['kills'])}</td>" if has_stats else "")
+                cell = (("F" if m["col"] == 0 else "B") + str(m["row"] + 1)) if m["row"] is not None else m["lane"][:1].upper()
+                sec = f'<div class=sec>{cmd(m["secondary_cmd"], 18)}</div>' if m["secondary_cmd"] else ""
+                rows += (f"<tr><td>{cmd(m['primary_cmd'], 24)}{sec}</td><td class=n>{cell}</td><td class=n>{_num(m['troops'])}</td>"
+                         + (f"<td class=n>{_num(m['remaining'])}</td><td class=n>{_num(m['kills'])}</td>" if has_stats else "")
                          + "</tr>")
-            head = "<tr><th>March</th><th>Position</th><th>Troops</th>" + \
-                   ("<th>Left</th><th>Kills</th>" if has_stats else "") + "</tr>"
-            return f"<table>{head}{rows}</table>"
-        meta = []
-        if b["opp_name"]:
-            meta.append("vs " + esc(b["opp_name"]))
-        if b["rank_before"]:
-            meta.append(f"rank {b['rank_before']} to {b['rank_after']}")
-        if b["stars_delta"] is not None:
-            meta.append(f"stars {b['stars_delta']:+d}")
-        meta.append(b["source"] or "manual")
-        flag = f' <span class=warn>check: {esc((b["note"] or "").replace("check: ", ""))}</span>' if b["needs_review"] else \
-            (f" {esc(b['note'])}" if b["note"] else "")
-        out += (f"<div class=card><span class='badge {b['result']}'>{b['result'].upper()}</span>"
-                f"<span class='badge mode'>{'Lost Canyon' if b['mode'] == 'lost' else 'Sunset'}</span> "
-                f"<span class=muted>#{b['id']} {esc(b['ts'])}, {', '.join(meta)}</span>{flag}"
-                f"<div class=grid><div><b>Mine</b>{table('mine')}</div><div><b>Enemy</b>{table('enemy')}</div></div>"
-                f'<a href="/battle?id={b["id"]}"><button class=grey type=button>edit</button></a> '
+            head = "<tr><th>" + ("Yours" if team == "mine" else "Theirs") + "</th><th class=n>Cell</th><th class=n>Troops</th>" +                    ("<th class=n>Left</th><th class=n>Kills</th>" if has_stats else "") + "</tr>"
+            return f"<table class=compact>{head}{rows}</table>"
+        faces = lambda team: "".join(face(m["primary_cmd"], 26) for m in ms if m["team"] == team)
+        note = (b["note"] or "").replace("check: ", "")
+        flag = f'<span class="pill warn" title="{esc(note)}">check</span>' if b["needs_review"] else ""
+        stars = f'<span class="n {"win" if b["stars_delta"] > 0 else "loss"}">{b["stars_delta"]:+d}</span>'             if b["stars_delta"] is not None else '<span></span>'
+        out += (f"<details class=fight><summary>"
+                f"<span class='badge {b['result']}'>{b['result'].upper()}</span>"
+                f"<span class=when>{esc(local.get(b['id'], ''))}<br><span class=muted>{'Lost' if b['mode'] == 'lost' else 'Sunset'}</span></span>"
+                f"<span class=opp>{esc(b['opp_name'] or '')}</span>"
+                f"<span class=faces>{faces('mine')}</span><span class=muted>vs</span><span class=faces>{faces('enemy')}</span>"
+                f"{stars}{flag}</summary>"
+                + (f"<p class=warn>{esc(note)}</p>" if b["needs_review"] and note else "")
+                + f"<div class=grid>{table('mine')}{table('enemy')}</div>"
+                f"<div class=actions><span class=muted>#{b['id']}"
+                + (f", rank {b['rank_before']} &rarr; {b['rank_after']}" if b["rank_before"] else "") + "</span>"
+                f'<a href="/battle?id={b["id"]}"><button class=grey type=button>edit</button></a>'
                 f'<form method=post action=/history/delete style="display:inline"><input type=hidden name=id value="{b["id"]}">'
-                f"<button class=grey>delete</button></form></div>")
+                f"<button class=grey>delete</button></form></div></details>")
     title = "Battles to check" if only_review else "History"
-    link = '<a href="/history">show all</a>' if only_review else '<a href="/history?review=1">only battles to check</a>'
-    return page(title, f"<h2>{title}</h2><p>{link}{pick}</p>{out or '<p>Nothing here yet.</p>'}")
+    link = '<a href="/history">show all</a>' if only_review else f'<a class="pill warn" href="/history?review=1">only fights to check</a>'
+    return page(title, f"<h2>{title} <span class=sub>{len(picked)} fights</span><span class=spacer></span>{pick}{link}</h2>"
+                       f"{out or '<p>Nothing here yet.</p>'}")
 
 
 def battle_page(conn, query):
@@ -801,6 +883,8 @@ class Handler(BaseHTTPRequestHandler):
                     "ON CONFLICT(name) DO UPDATE SET troop=excluded.troop, role=excluded.role, grade=excluded.grade",
                     (g("name"), g("troop"), g("role", "any"), g("grade")))
                 conn.commit()
+                if self.headers.get("X-Requested-With") == "fetch":      # saved from the page as you pick
+                    return self.send("ok", ctype="text/plain")
                 return self.send("", 303, "/commanders")
             if path == "/history/delete":
                 conn.execute("DELETE FROM battles WHERE id=?", (g("id"),))
